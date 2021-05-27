@@ -1,9 +1,21 @@
+
+#[macro_use]
+extern crate lazy_static;
+
+
 mod pieceinit;
+
 //                                          enums and constants
 /*const NOTAFILE: u64 = 18374403900871474942; // masks giving 1s for all files but the edge files
 const NOTHFILE: u64 = 9187201950435737471; //probably not needed in this file
 const NOTHGFILE: u64 = 4557430888798830399;
 const NOTABFILE: u64 = 18229723555195321596;*/
+
+lazy_static! { //allows me to use this stuff as statics, neat
+    static ref PAWN_ATTACKS:[[u64;64]; 2] = pieceinit::init_pawn_attacks();
+    static ref KNIGHT_ATTACKS:[u64; 64] = pieceinit::init_knight_attacks();
+    static ref KING_ATTACKS:[u64; 64] = pieceinit::init_king_attacks();
+}
 
 enum Square {
     A8, B8, C8, D8, E8, F8, G8, H8,
@@ -15,6 +27,17 @@ enum Square {
     A2, B2, C2, D2, E2, F2, G2, H2,
     A1, B1, C1, D1, E1, F1, G1, H1, }
 enum Color { WHITE, BLACK,}
+
+const SQUARE_TO_COORDINATES: [&str; 64] = [
+    "A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8",
+    "A7", "B7", "C7", "D7", "E7", "F7", "G7", "H7",
+    "A6", "B6", "C6", "D6", "E6", "F6", "G6", "H6",
+    "A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5",
+    "A4", "B4", "C4", "D4", "E4", "F4", "G4", "H4",
+    "A3", "B3", "C3", "D3", "E3", "F3", "G3", "H3",
+    "A2", "B2", "C2", "D2", "E2", "F2", "G2", "H2",
+    "A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"
+];
 
 
 
@@ -39,6 +62,11 @@ macro_rules! pop_bit {//sets a bit on a board to a 0
         $bb &= !(1u64 <<$square) // takes the nand between the bitboard and the shifted square
     }
 }
+
+//use .count_ones to count bits
+//use .trailing_zeros to find least significant bit index
+
+
 
 
 
@@ -78,14 +106,10 @@ fn print_bitboard(bitboard: u64) -> (){ //prints a bitboard
 
 
 fn main() {
-    let pawn_attacks = pieceinit::init_pawn_attacks();
-    let knight_attacks = pieceinit::init_knight_attacks();
-    let king_attacks = pieceinit::init_king_attacks();
+
+ pieceinit::init_magic_numbers();
 
 
-    print_bitboard(king_attacks[Square::D5 as usize])
-    //bitboard = mask_pawn_attacks(Square::A4 as u8, Color::WHITE as u8);
-    //print_bitboard(bitboard);
 
 
 }
