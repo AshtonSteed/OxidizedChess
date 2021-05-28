@@ -19,7 +19,7 @@ lazy_static! { //allows me to use this stuff as statics, neat
     static ref PAWN_ATTACKS:[[u64;64]; 2] = pieceinit::init_pawn_attacks();
     static ref KNIGHT_ATTACKS:[u64; 64] = pieceinit::init_knight_attacks();
     static ref KING_ATTACKS:[u64; 64] = pieceinit::init_king_attacks();
-    static ref SLIDER_STUFF: Vec<Vec<Vec<u64>>> = pieceinit::init_slider_attacks(); // rook attacks 0 [64][4096], bishop attacks 1 [64][
+    static ref SLIDER_ATTACKS: Vec<u64>= pieceinit::init_slider_attacks2().0;
 
 
 }
@@ -100,14 +100,18 @@ fn print_bitboard(bitboard: u64) -> (){ //prints a bitboard
 }
 
 //                                              attacks
+
 fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy &= piececonstants::BISHOP_MASKS[square];
     occupancy = occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]);
     occupancy >>= 64 - piececonstants::BISHOPBITS[square];
 
-    SLIDER_STUFF[1][square][occupancy as usize]
+    SLIDER_ATTACKS[piececonstants::BISHOP_POINTERS[square] + occupancy as usize]
 
 }
+
+
+
 
 
 fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
@@ -115,7 +119,7 @@ fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
     occupancy >>= 64 - piececonstants::ROOKBITS[square];
 
-    SLIDER_STUFF[0][square][occupancy as usize]
+    SLIDER_ATTACKS[piececonstants::ROOK_POINTERS[square] + occupancy as usize]
 
 }
 //                                              main driver
@@ -132,24 +136,32 @@ use std::time::{Duration, Instant};
 
 
 fn main() {
-    let mut occupancy = 0u64;
-
-    set_bit!(occupancy, Square::D6 as usize);
-    set_bit!(occupancy, Square::G4 as usize);
-    set_bit!(occupancy, Square::A2 as usize);
-    set_bit!(occupancy, Square::F3 as usize);
+    let mut occupancy = u64::MAX;
 
 
+    let mut zero_count = 0;
+    let mut count = 0;
 
+    for square in 0..64 {
+
+        print_bitboard(get_bishop_attacks(square, occupancy));
+
+
+    }
     print_bitboard(occupancy);
 
-    let a = pieceinit::init_slider_attacks2().0;
+    println!("COUNT: {}     ZERO COUNT:{}", count, zero_count);
+
+
+
+    //println!("{:#?}", SLIDER_STUFF_2);
+
+
 
     /*for index in 0..1000 {
         print_bitboard(a[index + 84658]);
     }*/
 
-    println!("{}    {}", a.len(), 4066 * 64 + 64 * 512);
 
 
 

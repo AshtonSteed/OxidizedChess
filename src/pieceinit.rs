@@ -1,5 +1,6 @@
 use rand::Rng;
 use crate::piececonstants;
+use std::cmp::max;
 
 
 // MACROS
@@ -367,33 +368,35 @@ pub fn init_slider_attacks2() -> (Vec<u64>, Vec<usize>, Vec<usize>) { //didnt wo
         let b_occupancy_indicies:usize = 1 << b_relevant_bit_count;
         let r_occupancy_indicies:usize = 1 << r_relevant_bit_count;
 
-        let mut max_bishop_index = 0;
-        let mut max_rook_index = 0;
 
+
+        for _index in 0..r_occupancy_indicies {
+            slider_attacks.push(0);
+        }
         for index in 0..r_occupancy_indicies {
-
 
             let occupancy = set_occupancy(index as usize,  rook_attack_mask);
 
             let magic_index = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]) >> (64 - ROOKBITS[square]);
-            if magic_index > max_rook_index { max_rook_index = magic_index}
 
-            slider_attacks.push(rook_attacks_on_fly(square as i8, occupancy));
+
+            slider_attacks[rook_pointers[square] + magic_index as usize] = rook_attacks_on_fly(square as i8, occupancy);
 
         }
 
-        bishop_pointers[square] = rook_pointers[square] + max_rook_index as usize;
-
+        bishop_pointers[square] = rook_pointers[square] + r_occupancy_indicies as usize;
+        for _index in 0..b_occupancy_indicies {
+            slider_attacks.push(0);
+        }
         for index in 0..b_occupancy_indicies {
             let occupancy = set_occupancy(index as usize, bishop_attack_mask);
 
             let magic_index = occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]) >> (64 - BISHOPBITS[square]);
-            if magic_index > max_bishop_index { max_bishop_index = magic_index}
 
-            slider_attacks.push(bishop_attacks_on_fly(square as i8, occupancy));
+            slider_attacks[bishop_pointers[square] + magic_index as usize] = bishop_attacks_on_fly(square as i8, occupancy);
         };
 
-        rook_pointers[square + 1] = bishop_pointers[square] + max_bishop_index as usize;
+        rook_pointers[square + 1] = bishop_pointers[square] + b_occupancy_indicies as usize;
 
     }
     return (slider_attacks, rook_pointers, bishop_pointers)
