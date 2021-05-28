@@ -139,18 +139,11 @@ fn main() {
     let mut occupancy = u64::MAX;
 
 
-    let mut zero_count = 0;
-    let mut count = 0;
-
-    for square in 0..64 {
-
-        print_bitboard(get_bishop_attacks(square, occupancy));
 
 
-    }
+    println!("{}", SLIDER_ATTACKS.len());
     print_bitboard(occupancy);
 
-    println!("COUNT: {}     ZERO COUNT:{}", count, zero_count);
 
 
 
