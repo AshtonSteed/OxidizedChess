@@ -21,6 +21,7 @@ lazy_static! { //allows me to use this stuff as statics, neat
     static ref KING_ATTACKS:[u64; 64] = pieceinit::init_king_attacks();
     static ref SLIDER_STUFF: Vec<Vec<Vec<u64>>> = pieceinit::init_slider_attacks(); // rook attacks 0 [64][4096], bishop attacks 1 [64][
 
+
 }
 
 enum Square {
@@ -108,6 +109,7 @@ fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
 
 }
 
+
 fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy &= piececonstants::ROOK_MASKS[square];
     occupancy = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
@@ -128,6 +130,7 @@ fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
 use std::time::{Duration, Instant};
 
 
+
 fn main() {
     let mut occupancy = 0u64;
 
@@ -139,9 +142,14 @@ fn main() {
 
 
     print_bitboard(occupancy);
-    for i in 0..64 {
-        print_bitboard(get_rook_attacks(i, occupancy));
-    }
+
+    let a = pieceinit::init_slider_attacks2().0;
+
+    /*for index in 0..1000 {
+        print_bitboard(a[index + 84658]);
+    }*/
+
+    println!("{}    {}", a.len(), 4066 * 64 + 64 * 512);
 
 
 

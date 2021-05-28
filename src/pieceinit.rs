@@ -1,6 +1,7 @@
 use rand::Rng;
 use crate::piececonstants;
 
+
 // MACROS
 macro_rules! get_bit { //returns either 1 or 0, depending on if the square is a active bit
     ($bb:expr, $square:expr) => {
@@ -307,6 +308,8 @@ pub fn init_slider_attacks() -> Vec<Vec<Vec<u64>>> {
     let mut rook_masks= vec![0u64; 64];
     let mut rook_attacks = vec![vec![0u64; 4096]; 64];
     let mut bishop_attacks = vec![vec![0u64; 512]; 64];
+    let mut rook_pointers:Vec<usize> = vec![0usize; 64];
+    let mut bishop_pointers:Vec<usize> = vec![0usize; 64];
 
 
     for square in 0..64 {
@@ -343,6 +346,59 @@ pub fn init_slider_attacks() -> Vec<Vec<Vec<u64>>> {
 
     }
     return vec!(rook_attacks, bishop_attacks)
+}
+
+
+pub fn init_slider_attacks2() -> (Vec<u64>, Vec<usize>, Vec<usize>) { //didnt work : (
+    let mut bishop_masks = vec![0u64; 64];
+    let mut rook_masks= vec![0u64; 64];
+    let mut slider_attacks:Vec<u64> = vec![];
+    let mut rook_pointers:Vec<usize> = vec![0usize; 65];
+    let mut bishop_pointers:Vec<usize> = vec![0usize; 65];
+
+
+    for square in 0..64 {
+        bishop_masks[square] = mask_bishop_attacks(square as i8);
+        rook_masks[square] = mask_rook_attacks(square as i8);
+
+        let bishop_attack_mask = bishop_masks[square];
+        let rook_attack_mask = rook_masks[square];
+        let b_relevant_bit_count = bishop_attack_mask.count_ones();
+        let r_relevant_bit_count = rook_attack_mask.count_ones();
+
+        let b_occupancy_indicies:usize = 1 << b_relevant_bit_count;
+        let r_occupancy_indicies:usize = 1 << r_relevant_bit_count;
+
+        let mut max_bishop_index = 0;
+        let mut max_rook_index = 0;
+
+        for index in 0..r_occupancy_indicies {
+
+
+            let occupancy = set_occupancy(index as usize,  rook_attack_mask);
+
+            let magic_index = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]) >> (64 - ROOKBITS[square]);
+            if magic_index > max_rook_index { max_rook_index = magic_index}
+
+            slider_attacks.push(rook_attacks_on_fly(square as i8, occupancy));
+
+        }
+
+        bishop_pointers[square] = rook_pointers[square] + max_rook_index as usize;
+
+        for index in 0..b_occupancy_indicies {
+            let occupancy = set_occupancy(index as usize, bishop_attack_mask);
+
+            let magic_index = occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]) >> (64 - BISHOPBITS[square]);
+            if magic_index > max_bishop_index { max_bishop_index = magic_index}
+
+            slider_attacks.push(bishop_attacks_on_fly(square as i8, occupancy));
+        };
+
+        rook_pointers[square + 1] = bishop_pointers[square] + max_bishop_index as usize;
+
+    }
+    return (slider_attacks, rook_pointers, bishop_pointers)
 }
 
 
