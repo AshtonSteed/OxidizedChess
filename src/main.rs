@@ -101,8 +101,8 @@ fn print_bitboard(bitboard: u64) -> (){ //prints a bitboard
 //                                              attacks
 fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy &= piececonstants::BISHOP_MASKS[square];
-    occupancy = occupancy.wrapping_mul(pieceinit::BISHOPMAGICNUMBERS[square]);
-    occupancy >>= 64 - pieceinit::BISHOPBITS[square];
+    occupancy = occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]);
+    occupancy >>= 64 - piececonstants::BISHOPBITS[square];
 
     SLIDER_STUFF[1][square][occupancy as usize]
 
@@ -110,8 +110,8 @@ fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
 
 fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy &= piececonstants::ROOK_MASKS[square];
-    occupancy = occupancy.wrapping_mul(pieceinit::ROOKMAGICNUMBERS[square]);
-    occupancy >>= 64 - pieceinit::ROOKBITS[square];
+    occupancy = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
+    occupancy >>= 64 - piececonstants::ROOKBITS[square];
 
     SLIDER_STUFF[0][square][occupancy as usize]
 
@@ -140,7 +140,7 @@ fn main() {
 
     print_bitboard(occupancy);
     for i in 0..64 {
-        print_bitboard(get_bishop_attacks(i, occupancy));
+        print_bitboard(get_rook_attacks(i, occupancy));
     }
 
 
