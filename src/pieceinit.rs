@@ -308,8 +308,6 @@ pub fn init_slider_attacks() -> Vec<Vec<Vec<u64>>> {
     let mut rook_masks= vec![0u64; 64];
     let mut rook_attacks = vec![vec![0u64; 4096]; 64];
     let mut bishop_attacks = vec![vec![0u64; 512]; 64];
-    let mut rook_pointers:Vec<usize> = vec![0usize; 64];
-    let mut bishop_pointers:Vec<usize> = vec![0usize; 64];
 
 
     for square in 0..64 {
