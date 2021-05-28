@@ -23,7 +23,7 @@ const NOTHFILE: u64 = 9187201950435737471;
 const NOTHGFILE: u64 = 4557430888798830399;
 const NOTABFILE: u64 = 18229723555195321596;
 
-const ROOKBITS: [u64; 64] =
+pub const ROOKBITS: [u64; 64] =
         [12, 11, 11, 11, 11, 11, 11, 12,
         11, 10, 10, 10, 10, 10, 10, 11,
         11, 10, 10, 10, 10, 10, 10, 11,
@@ -32,7 +32,7 @@ const ROOKBITS: [u64; 64] =
         11, 10, 10, 10, 10, 10, 10, 11,
         11, 10, 10, 10, 10, 10, 10, 11,
         12, 11, 11, 11, 11, 11, 11, 12];
-const BISHOPBITS: [u64; 64] =
+pub const BISHOPBITS: [u64; 64] =
     [6, 5, 5, 5, 5, 5, 5, 6,
     5, 5, 5, 5, 5, 5, 5, 5,
     5, 5, 7, 7, 7, 7, 5, 5,
@@ -42,134 +42,137 @@ const BISHOPBITS: [u64; 64] =
     5, 5, 5, 5, 5, 5, 5, 5,
     6, 5, 5, 5, 5, 5, 5, 6];
 
-const BISHOPMAGICNUMBERS: [u64; 64] = [0x40080821404004,
-    0x400042080031008,
-    0x22404000524000,
-    0x28C060800104400,
-    0x802200102400000,
-    0x33604C000344C210,
-    0x821049810410001,
-    0x820000021841044,
-    0x90652C0004180024,
-    0x44DC0800801012,
-    0x20000100468000C1,
-    0x100100A060880000,
-    0x148048500,
-    0x45C000A100204880,
-    0x8000210000E200,
-    0x205000C048102012,
-    0x7049421400402,
-    0x102020A80082199,
-    0x500121000240C,
-    0x4102200120000,
-    0x10200800440040,
-    0x308600002081800,
-    0x8A00003A2040221,
-    0x4000800060300028,
-    0x900010492041900,
-    0x5A00150003C28000,
-    0xCA22208020110000,
-    0x1000000810404890,
-    0x1624022100415802,
-    0x892B020010002140,
-    0xC0050002A20D0,
-    0x50000020E8000,
-    0x790000321000A,
-    0x200004500000920,
-    0x2000007048009100,
-    0x4021C01002020,
-    0x800100000CA000,
-    0x800000A9108424,
-    0x400064008900,
-    0x3400600910004,
-    0x4008020882001420,
-    0x1200441805040840,
-    0x8087080004000221,
-    0x470602002002084,
-    0x4010000008A01000,
-    0x1000024890102220,
-    0x20008004A0890100,
-    0x6010230190400020,
-    0x2440007502020040,
-    0x400001402A8000,
-    0x228B22004018080,
-    0x20000104010000,
-    0x121000102020900,
-    0x1104C28000031D00,
-    0x10020030C60204,
-    0x9223080080004E00,
-    0x4600040200402B08,
-    0x1401600D81000702,
-    0x2204120002820,
-    0x2041820000809080,
-    0x802208108020,
-    0x4440000228881010,
-    0x2300100008C2,
-    0x8080088224A004 ];
-const ROOKMAGICNUMBERS: [u64; 64] = [0x8024050000604240,
-    0x8400201020080,
-    0x2104404800102020,
-    0x4910040000A0050,
-    0x402000220000010,
-    0x1001448082100084,
-    0x6052220200281,
-    0x481010425023020,
-    0x8A8003C080180102,
-    0xC00400040000,
-    0x1030004600186000,
-    0x40044002010038,
-    0x1002D0004400D18,
-    0x52240260200,
-    0x100000AA09420101,
-    0x404011052402400,
-    0x100840431020A040,
-    0x3C80A09024002408,
-    0x102812820000000,
-    0xE21000C0010010,
-    0x80000C48001200C,
-    0x100000084000,
-    0x4010010100448001,
-    0x1808060000000600,
-    0x1081000C02008081,
-    0x20000209106800,
-    0x1000030188004000,
-    0x400080000400710,
-    0x2000004040000000,
-    0x8241040298020,
-    0xA100A00003000,
-    0x80001008200400,
-    0x80600101000000,
-    0x908DE00000807001,
-    0x408080092400018,
-    0x500532600000402,
-    0x400000002010028,
-    0x80A0008000409E1,
-    0x184020012001040,
-    0x4020A80420880820,
-    0x120008800A022074,
-    0x4000020604808,
-    0x200010100600400,
-    0x828082000501010,
-    0x2241001004484904,
-    0x12880000102200,
-    0x400000002020000,
-    0x20A0A8020408,
-    0x5040824004004,
-    0x1001100400217090,
-    0x1180000140141000,
-    0x200000A08085201,
-    0x2002000440,
-    0x1000025C01000005,
-    0x6000C000801006C,
-    0x100400C080092110,
-    0x400030000000008,
-    0x800000031000001,
-    0x13900440010120,
-    0x2114010080400,
-    0x4001000000320508,
-    0x2141088080101421,
-    0x121000004882002,
-    0x1090A0284000006
+pub const BISHOPMAGICNUMBERS: [u64; 64] = [
+    0x82080801040020,
+    0x4010010214204020,
+    0x810A10200202020,
+    0x484040090081044,
+    0x8604242020280108,
+    0x108900420000000,
+    0x8402010160102404,
+    0x2203404404202280,
+    0x2030382808280050,
+    0x4084C424481E0028,
+    0x800041400860480,
+    0x40020A0208000C,
+    0x3181A20210A10004,
+    0x11008040404,
+    0xA01010108200400,
+    0x1000004124012000,
+    0x222001002820800,
+    0xC7000200410C283,
+    0x1004082080200A,
+    0x4402005040104100,
+    0x103000811400200,
+    0x242860100A000,
+    0xC210488A100230,
+    0x828A000100808440,
+    0x50884024004080C,
+    0x8381042660800,
+    0x1880900080AC104,
+    0x8002002008008120,
+    0x8010840000802000,
+    0x2112120000480A08,
+    0x3000810008880800,
+    0x4810404002110C21,
+    0x208080454082020,
+    0x41AC026000080100,
+    0x40A0101080840,
+    0x140020080080080,
+    0x40004100481100,
+    0x401010A00210044,
+    0x10224240048400,
+    0xC02008100220050,
+    0x8010880410004040,
+    0x842420110280,
+    0x20200220C0400,
+    0x80202218012400,
+    0x8080104004042,
+    0x11210020E208200,
+    0x204283801022042,
+    0x21C0042000088,
+    0x580208A00040,
+    0x8220208410080000,
+    0x4082002C02080200,
+    0x6021010041108004,
+    0x404802060410802,
+    0x100104408082210,
+    0x2012100A08124000,
+    0x8082042404104600,
+    0x14210440404406E,
+    0xC4400A80904,
+    0x20424A4608D000,
+    0x4C102200020D1400,
+    0x301A80004050402,
+    0x1080924284682080,
+    0x91409001024880,
+    0x60080A08005412
+];
+pub const ROOKMAGICNUMBERS: [u64; 64] = [
+    0x1080002080400010,
+    0x40004020001000,
+    0x10020010040100A,
+    0x1000421000A1000,
+    0xA002004020010C8,
+    0x200080200041001,
+    0x1080008002002100,
+    0x10010204100008E,
+    0x28001A280C004,
+    0x4001002040011080,
+    0x420802000100082,
+    0xA0808008001000,
+    0x20800800040080,
+    0x14804400800200,
+    0x8004008208011004,
+    0x4000801D00006180,
+    0x1680004000200048,
+    0x40048020008040,
+    0x4020818010002004,
+    0x5080848010008800,
+    0x800808004000802,
+    0x80D0808002000400,
+    0xE0040001080210,
+    0x80220000408421,
+    0x1000400180006080,
+    0x810024440002000,
+    0x80F0018280200210,
+    0x8002011200204208,
+    0x400040080080080,
+    0x12000200081004,
+    0x1020400881001,
+    0x141048A00041241,
+    0x900080C001800022,
+    0x804000802000,
+    0x90080020200400,
+    0x320100021000900,
+    0x80110005000800,
+    0x3034004100400200,
+    0x821024004108,
+    0x9001408406000041,
+    0x3208140028004,
+    0x50002004424000,
+    0x3201600102B10040,
+    0x200010400A020021,
+    0x85000800050010,
+    0x40002008080,
+    0x8400010002008080,
+    0x2001010040820004,
+    0x8000800041002100,
+    0x1900902100400100,
+    0x222700020008280,
+    0x888009001800880,
+    0x100800800040080,
+    0x4292000400800280,
+    0x4008023110388400,
+    0x840010040940200,
+    0x2400800010250841,
+    0x40050010238141,
+    0x1000090040102001,
+    0x2082100041001,
+    0x12020004A1081002,
+    0x8901000804000201,
+    0x4008210280104,
+    0x200002400410082
 ];
 
 //JUMP ATACK GEN
@@ -308,7 +311,7 @@ fn mask_bishop_attacks(square: i8) -> u64 { //crude bishop/rook move gen, just g
 
 }
 // mask rook attacks
-fn mask_rook_attacks(square: i8) -> u64 { //crude bishop/rook move gen,  just gives all relevant occupancy bits
+pub fn mask_rook_attacks(square: i8) -> u64 { //crude bishop/rook move gen,  just gives all relevant occupancy bits
     //output attacks
     let mut attacks: u64 = 0;
 
@@ -431,6 +434,57 @@ fn rook_attacks_on_fly(square: i8, block: u64) -> u64 { //crude bishop/rook move
     attacks
 }
 
+pub fn init_slider_attacks() -> Vec<Vec<Vec<u64>>> {
+    let mut bishop_masks = vec![0u64; 64];
+    let mut rook_masks= vec![0u64; 64];
+    let mut rook_attacks = vec![vec![0u64; 4096]; 64];
+    let mut bishop_attacks = vec![vec![0u64; 512]; 64];
+
+
+    for square in 0..64 {
+        bishop_masks[square] = mask_bishop_attacks(square as i8);
+        rook_masks[square] = mask_rook_attacks(square as i8);
+
+
+        let bishop_attack_mask = bishop_masks[square];
+        let rook_attack_mask = rook_masks[square];
+        let b_relevant_bit_count = bishop_attack_mask.count_ones();
+        let r_relevant_bit_count = rook_attack_mask.count_ones();
+
+        let occupancy_indicies:usize = 1 << b_relevant_bit_count;
+
+        for index in 0..occupancy_indicies {
+            let occupancy = set_occupancy(index as usize, bishop_attack_mask);
+
+            let magic_index = occupancy.wrapping_mul(BISHOPMAGICNUMBERS[square]) >> (64 - BISHOPBITS[square]);
+
+            bishop_attacks[square][magic_index as usize] = bishop_attacks_on_fly(square as i8, occupancy);
+        }
+        let occupancy_indicies:usize = 1 << r_relevant_bit_count;
+        for index in 0..occupancy_indicies {
+
+
+                let occupancy = set_occupancy(index as usize,  rook_attack_mask);
+
+                let magic_index = occupancy.wrapping_mul(ROOKMAGICNUMBERS[square]) >> (64 - ROOKBITS[square]);
+
+                rook_attacks[square][magic_index as usize] = rook_attacks_on_fly(square as i8, occupancy);
+
+        }
+
+
+    }
+    return vec!(rook_attacks, bishop_attacks)
+}
+
+
+
+
+
+
+
+
+
 
 //magic numbers
 fn set_occupancy(magic_index: usize, mut attack_mask: u64) -> u64{
@@ -441,9 +495,10 @@ fn set_occupancy(magic_index: usize, mut attack_mask: u64) -> u64{
         //get ls1b
         let square = attack_mask.trailing_zeros();
         pop_bit!(attack_mask, square);
+        //print_bitboard(attack_mask);
 
         //make sure occupancy is on board
-        if magic_index != 0 && (1 << count) != 0 {
+        if magic_index as u64 & 1u64 << count != 0 {
             //set occupancy map
             set_bit!(occupancy, square);
         }
@@ -531,7 +586,7 @@ fn find_magic_number(square: i8, relevant_bits: u64, bishop: bool) -> u64 {
     return 0u64;
 }
 
-pub fn init_magic_numbers() {
+fn init_magic_numbers() {
     // loop for 64 board squares
     for square in 0..64 {
         let magic = find_magic_number(square, BISHOPBITS[square as usize], true);
@@ -547,4 +602,3 @@ pub fn init_magic_numbers() {
     }
 }
 
-/* TODO: Check occupancy generation, Check magic numbers */
