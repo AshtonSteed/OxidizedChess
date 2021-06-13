@@ -16,12 +16,7 @@ const NOTHGFILE: u64 = 4557430888798830399;
 const NOTABFILE: u64 = 18229723555195321596;*/
 
 lazy_static! { //allows me to use this stuff as statics, neat
-    static ref PAWN_ATTACKS:[[u64;64]; 2] = pieceinit::init_pawn_attacks();
-    static ref KNIGHT_ATTACKS:[u64; 64] = pieceinit::init_knight_attacks();
-    static ref KING_ATTACKS:[u64; 64] = pieceinit::init_king_attacks();
     static ref SLIDER_ATTACKS: Vec<u64>= pieceinit::init_slider_attacks2().0;
-
-
 }
 
 enum Square {
@@ -107,20 +102,14 @@ fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy >>= 64 - piececonstants::BISHOPBITS[square];
 
     SLIDER_ATTACKS[piececonstants::BISHOP_POINTERS[square] + occupancy as usize]
-
 }
 
-
-
-
-
-fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
+pub fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
     occupancy &= piececonstants::ROOK_MASKS[square];
     occupancy = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
     occupancy >>= 64 - piececonstants::ROOKBITS[square];
 
     SLIDER_ATTACKS[piececonstants::ROOK_POINTERS[square] + occupancy as usize]
-
 }
 //                                              main driver
 
@@ -136,24 +125,27 @@ use std::time::{Duration, Instant};
 
 
 fn main() {
-    let mut occupancy = u64::MAX;
+    let mut occupancy = 0u64;
 
+    set_bit!(occupancy, Square::D3 as usize);
+    set_bit!(occupancy, Square::D5 as usize);
+    set_bit!(occupancy, Square::F6 as usize);
 
+    print_bitboard(get_rook_attacks(Square::C5 as usize, occupancy));
 
+    print_bitboard(piececonstants::PAWN_ATTACKS[0][Square::C5 as usize]);
+    //let tic = Instant::now();
 
-    println!("{}", SLIDER_ATTACKS.len());
-    print_bitboard(occupancy);
+    /*for square in 0..64 {
+        print_bitboard(get_rook_attacks(square, occupancy));
+    }*/
+    //let toc = Instant::now();
 
 
 
 
     //println!("{:#?}", SLIDER_STUFF_2);
 
-
-
-    /*for index in 0..1000 {
-        print_bitboard(a[index + 84658]);
-    }*/
 
 
 
