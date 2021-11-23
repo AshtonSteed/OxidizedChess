@@ -39,15 +39,52 @@ pub struct Board {
 impl Default for Board {
     fn default() -> Board {
         Board {
-            pieceboards: [0; 12],                              // all boards to 0s
-            occupancies: [0; 3],                               // all occupancies to 0s
-            side: None,                                        // side no worky
-            enpassant: piececonstants::Square::NO_SQ as usize, // enpassant possible square, no_sq
+            pieceboards: [0; 12],                             // all boards to 0s
+            occupancies: [0; 3],                              // all occupancies to 0s
+            side: None,                                       // side no worky
+            enpassant: piececonstants::Square::NOSQ as usize, // enpassant possible square, no_sq
             castle: 0,
         }
     }
 }
 impl Board {
+    pub fn is_square_attacked(&self, square: usize) -> bool {
+        // returns true if square is attacked by current side
+        let side = self.side.unwrap() != 0;
+        let base = side as usize * 6;
+        if piececonstants::PAWN_ATTACKS[!side as usize][square] & self.pieceboards[base] != 0 {
+            return true;
+        } else if piececonstants::KNIGHT_ATTACKS[square] & self.pieceboards[base + 1] != 0 {
+            return true;
+        } else if piececonstants::KING_ATTACKS[square] & self.pieceboards[base + 5] != 0 {
+            return true;
+        } else if get_bishop_attacks(square, self.occupancies[2])
+            & (self.pieceboards[base + 2] | self.pieceboards[base + 4])
+            != 0
+        {
+            return true;
+        } else if get_rook_attacks(square, self.occupancies[2])
+            & (self.pieceboards[base + 3] | self.pieceboards[base + 4])
+            != 0
+        {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    pub fn print_attacks(&self) {
+        let mut attackboard: u64 = 0;
+        for rank in 0..8 {
+            for file in 0..8 {
+                let square = rank * 8 + file;
+                if self.is_square_attacked(square) {
+                    set_bit!(attackboard, square);
+                }
+            }
+        }
+        crate::print_bitboard(attackboard);
+    }
+
     pub fn print_board(&self) -> () {
         for rank in 0..8 {
             for file in 0..8 {
@@ -87,7 +124,7 @@ impl Board {
         self.pieceboards = [0; 12]; // all boards to 0s
         self.occupancies = [0; 3]; // all occupancies to 0s
         self.side = None; // side no worky
-        self.enpassant = piececonstants::Square::NO_SQ as usize; // enpassant possible square, no_sq
+        self.enpassant = piececonstants::Square::NOSQ as usize; // enpassant possible square, no_sq
         self.castle = 0;
 
         let mut square = 0;

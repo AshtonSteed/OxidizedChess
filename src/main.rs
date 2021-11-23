@@ -12,7 +12,7 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 //use .count_ones to count bits
 //use .trailing_zeros to find least significant bit index
 
-fn print_bitboard(bitboard: u64) -> () {
+pub fn print_bitboard(bitboard: u64) -> () {
     //prints a bitboard
     println!();
     for rank in 0..8 {
@@ -40,19 +40,13 @@ fn print_bitboard(bitboard: u64) -> () {
 //use std::time::{Duration, Instant};
 
 fn main() {
-    print_bitboard(piececonstants::PAWN_ATTACKS[0][piececonstants::Square::C5 as usize]);
-
-    println!("{}", piececonstants::UNICODE_PIECES[2]);
-
     let mut board = engine::Board {
         ..Default::default()
     };
-    set_bit!(board.pieceboards[2], 23);
-    set_bit!(board.pieceboards[7], 54);
-    board.side = Some(0);
-    //board.castle = 13;
 
-    board.parse_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq e3 1 2");
+    board.parse_fen("8/1p6/3q4/4r3/2P6/8/8/8 b KQkq e3 1 2");
+
+    board.print_attacks();
 
     board.print_board();
 

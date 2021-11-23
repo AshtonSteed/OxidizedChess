@@ -92,7 +92,7 @@ pub enum Square {
     F1,
     G1,
     H1,
-    NO_SQ,
+    NOSQ,
 }
 
 pub const ASCII_PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
