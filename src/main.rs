@@ -19,6 +19,7 @@ pub fn print_bitboard(bitboard: u64) -> () {
         for file in 0..8 {
             // init board square, turn file and rank into square
             let square = rank * 8 + file;
+            //print!("{}", square);
             if file == 0 {
                 print!("{}  ", 8 - rank);
             }
@@ -44,11 +45,13 @@ fn main() {
         ..Default::default()
     };
 
-    board.parse_fen("8/1p6/3q4/4r3/2P6/8/8/8 b KQkq e3 1 2");
+    board.parse_fen("8/1p6/1k1q4/4r3/2P6/3p4/2p6/8 w KQkq e3 1 2");
 
     board.print_attacks();
 
     board.print_board();
+
+    board.generate_moves();
 
     //print_bitboard(board.occupancies[0]);
     //let tic = Instant::now();
