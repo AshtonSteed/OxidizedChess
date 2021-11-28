@@ -1,6 +1,5 @@
 use crate::piececonstants;
 use rand::Rng;
-use std::cmp::max;
 
 // MACROS
 macro_rules! get_bit {
@@ -215,7 +214,7 @@ pub fn mask_rook_attacks(square: i8) -> u64 {
 
 //atacks on the fly
 
-fn bishop_attacks_on_fly(square: i8, block: u64) -> u64 {
+pub fn bishop_attacks_on_fly(square: i8, block: u64) -> u64 {
     //crude bishop/rook move gen, generates attacks given occupancy board
     //output attacks
     //output attacks
@@ -272,7 +271,7 @@ fn bishop_attacks_on_fly(square: i8, block: u64) -> u64 {
     attacks
 }
 // mask rook attacks
-fn rook_attacks_on_fly(square: i8, block: u64) -> u64 {
+pub fn rook_attacks_on_fly(square: i8, block: u64) -> u64 {
     //crude bishop/rook move gen,  generates attacks given occupancy board
     //output attacks
     let mut attacks: u64 = 0;
@@ -283,7 +282,7 @@ fn rook_attacks_on_fly(square: i8, block: u64) -> u64 {
     let mut r = targetrank;
     let mut f = targetfile;
 
-    //generate bishop attacks
+    //generate rook attacks
     r = targetrank + 1;
     while r <= 7 {
         set_bit!(attacks, (r * 8 + f));
@@ -500,9 +499,9 @@ fn find_magic_number(square: i8, relevant_bits: u64, bishop: bool) -> u64 {
             //println!("{}", magic_index);
             //println!("{}", magic_index);
 
-            if (used_attacks[magic_index] == 0) {
+            if used_attacks[magic_index] == 0 {
                 used_attacks[magic_index] = attacks[index];
-            } else if (used_attacks[magic_index] != attacks[index]) {
+            } else if used_attacks[magic_index] != attacks[index] {
                 fail = true;
             }
 

@@ -1,10 +1,6 @@
 use crate::piececonstants;
 use crate::pieceinit;
 
-lazy_static! { //allows me to use this stuff as statics, neat
-    static ref SLIDER_ATTACKS: Vec<u64>= pieceinit::init_slider_attacks2().0;
-}
-
 //          Bit macros
 macro_rules! get_bit {
     //returns either 1 or 0, depending on if the square is a active bit
@@ -216,12 +212,12 @@ impl Board {
             return true;
         } else if piececonstants::KING_ATTACKS[square] & self.pieceboards[base + 5] != 0 {
             return true;
-        } else if get_bishop_attacks(square, self.occupancies[2])
+        } else if piececonstants::get_bishop_attacks(square, self.occupancies[2])
             & (self.pieceboards[base + 2] | self.pieceboards[base + 4])
             != 0
         {
             return true;
-        } else if get_rook_attacks(square, self.occupancies[2])
+        } else if piececonstants::get_rook_attacks(square, self.occupancies[2])
             & (self.pieceboards[base + 3] | self.pieceboards[base + 4])
             != 0
         {
@@ -383,37 +379,4 @@ pub fn write_move(
         piececonstants::SQUARE_TO_COORDINATES[target_square as usize]
     );
     0
-}
-pub fn get_bishop_attacks(square: usize, mut occupancy: u64) -> u64 {
-    occupancy &= piececonstants::BISHOP_MASKS[square];
-    occupancy = occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]);
-    occupancy >>= 64 - piececonstants::BISHOPBITS[square];
-
-    SLIDER_ATTACKS[piececonstants::BISHOP_POINTERS[square] + occupancy as usize]
-}
-
-pub fn get_rook_attacks(square: usize, mut occupancy: u64) -> u64 {
-    occupancy &= piececonstants::ROOK_MASKS[square];
-    occupancy = occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
-    occupancy >>= 64 - piececonstants::ROOKBITS[square];
-
-    SLIDER_ATTACKS[piececonstants::ROOK_POINTERS[square] + occupancy as usize]
-}
-
-pub fn get_queen_attacks(square: usize, occupancy: u64) -> u64 {
-    let mut bishop_occupancy = occupancy;
-
-    let mut rook_occupancy = occupancy;
-
-    bishop_occupancy &= piececonstants::BISHOP_MASKS[square];
-    bishop_occupancy = bishop_occupancy.wrapping_mul(piececonstants::BISHOPMAGICNUMBERS[square]);
-    bishop_occupancy >>= 64 - piececonstants::BISHOPBITS[square];
-
-    rook_occupancy &= piececonstants::ROOK_MASKS[square];
-    rook_occupancy = rook_occupancy.wrapping_mul(piececonstants::ROOKMAGICNUMBERS[square]);
-    rook_occupancy >>= 64 - piececonstants::ROOKBITS[square];
-
-    SLIDER_ATTACKS[piececonstants::BISHOP_POINTERS[square] + bishop_occupancy as usize]
-        | SLIDER_ATTACKS[piececonstants::ROOK_POINTERS[square] + rook_occupancy as usize]
-    // returns rook + bishop attacks from square
 }
