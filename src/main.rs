@@ -49,7 +49,7 @@ fn main() {
         ..Default::default()
     };
 
-    board.parse_fen("8/1p6/1k1Q4/4r3/2P6/3p4/2p6/8 b KQkq e3 1 2");
+    board.parse_fen("8/2n5/8/1K1B11r1/8/8/8/8 w - - 0 1");
 
     board.print_attacks();
 
@@ -57,112 +57,7 @@ fn main() {
 
     board.generate_moves();
 
-    movegen::refresh(&board, &mut 0, &mut 0);
-
-    let mut bb = 0u64;
-
-    let mut ray_between: [[u64; 64]; 64] = [[0; 64]; 64];
-    for kingsq in 12..13 as u64 {
-        for attacksquare in 0..64 as u64 {
-            let mut board: u64 = 0;
-            let mut squares: Vec<usize> = Vec::new();
-            let dif = (attacksquare as i32 - kingsq as i32).signum(); // negative if atk square is less than kingsquare
-            let mut samefile;
-            let mut samerank;
-            let mut samediag;
-            let mut sameadiag;
-            if dif == 1 {
-                samefile = (attacksquare - kingsq) & 7 == 0;
-                samerank = (attacksquare >> 3) - (kingsq >> 3) == 0; // (attacksquare >> 3) - (kingsq >> 3) == 0;
-
-                samediag = (attacksquare >> 3) - (kingsq >> 3) == (attacksquare - kingsq) & 7;
-                sameadiag = (attacksquare >> 3) - (kingsq >> 3) + (attacksquare - kingsq) & 7 == 0;
-            } else {
-                samefile = (kingsq - attacksquare) & 7 == 0;
-                samerank = (kingsq >> 3) - (attacksquare >> 3) == 0;
-                samediag = (kingsq >> 3) - (attacksquare >> 3) == (kingsq - attacksquare) & 7;
-                sameadiag = (kingsq >> 3) - (attacksquare >> 3) + (kingsq - attacksquare) & 7 == 0;
-            }
-            if dif == 1 {
-                println!(
-                    "{}, {}, {}",
-                    attacksquare,
-                    (attacksquare - kingsq) & 7,
-                    (attacksquare >> 3) - (kingsq >> 3)
-                );
-            } else {
-                println!(
-                    "{}, {}, {}",
-                    attacksquare,
-                    (kingsq - attacksquare) & 7,
-                    (kingsq >> 3) - (attacksquare >> 3)
-                );
-            }
-
-            if samediag {
-                set_bit!(bb, attacksquare)
-            }
-
-            let mut target = kingsq as i32;
-            if dif == 0 {
-                continue;
-            }
-            if samefile {
-                while target != attacksquare as i32 {
-                    target = target + 8 * dif;
-                    squares.push(target as usize);
-                }
-            } else if samerank {
-                while target != attacksquare as i32 {
-                    target = target + 1 * dif;
-                    squares.push(target as usize);
-                }
-            } else if samediag {
-                while target != attacksquare as i32 {
-                    target = target + 9 * dif;
-                    squares.push(target as usize);
-                    if target % 8 == 0 || target % 8 == 7 || target / 8 == 0 || target / 8 == 7 {
-                        if target != attacksquare as i32 {
-                            squares.clear();
-                            break;
-                        }
-                    }
-                    /*print_bitboard(board);
-                    println!(
-                        "{}. {}",
-                        piececonstants::SQUARE_TO_COORDINATES[kingsq as usize],
-                        piececonstants::SQUARE_TO_COORDINATES[attacksquare as usize]);*/
-                }
-            } else if sameadiag {
-                while target != attacksquare as i32 {
-                    target = target + 7 * dif;
-                    squares.push(target as usize);
-                    if target % 8 == 0 || target % 8 == 7 || target / 8 == 0 || target / 8 == 7 {
-                        if target != attacksquare as i32 {
-                            squares.clear();
-                            break;
-                        }
-                    }
-                    /*print_bitboard(board);
-                    println!(
-                        "{}. {}",
-                        piececonstants::SQUARE_TO_COORDINATES[kingsq as usize],
-                        piececonstants::SQUARE_TO_COORDINATES[attacksquare as usize]);*/
-                }
-            }
-            for square in squares {
-                set_bit!(board, square);
-            }
-            ray_between[kingsq as usize][attacksquare as usize] = board;
-        }
-    }
-    for i in 0..64 {
-        println!("{}", piececonstants::SQUARE_TO_COORDINATES[i]);
-        print_bitboard(ray_between[12][i]);
-    }
-    /*for square in 0..64 {
-        print_bitboard(ray_between[23][square]);
-    }*/
+    movegen::refresh(&board, &mut 0, &mut 0, &mut 0, &mut 0);
 
     //print_bitboard(board.occupancies[0]);
     //let tic = Instant::now();
@@ -174,3 +69,65 @@ fn main() {
 
     //println!("{:#?}", SLIDER_STUFF_2);
 }
+
+//probably obsolete raw generator
+
+/*let mut ray_between: [[u64; 64]; 64] = [[0; 64]; 64];
+for kingsq in 0..64 as i32 {
+    for attacksquare in 0..64 as i32 {
+        let mut board: u64 = 0;
+        let kingrank = kingsq / 8;
+        let kingfile = kingsq % 8;
+        let attackrank = attacksquare / 8;
+        let attackfile = attacksquare % 8;
+        let rankdif = kingrank - attackrank;
+        let filedif = kingfile - attackfile;
+        if rankdif == 0 && filedif == 0 {
+            // case where atk square and king overlap, no fill needed
+            continue;
+        } else if filedif == 0 {
+            let increment = rankdif.signum() * 8;
+            let mut target = kingsq;
+            while target != attacksquare {
+                target -= increment;
+                set_bit!(board, target);
+            }
+            target = kingsq;
+            set_bit!(board, target);
+            while target / 8 != 0 || target / 8 != 7 {
+                set_bit!(board, target);
+                target += increment;
+            }
+        } else if rankdif == 0 {
+            let increment = filedif.signum();
+            let mut target = kingsq;
+            while target != attacksquare {
+                target -= increment;
+                set_bit!(board, target);
+            }
+            target = kingsq;
+            set_bit!(board, target);
+            while target % 8 != 0 || target % 8 != 7 {
+                print_bitboard(board);
+                println!("{}, {}", kingsq, attacksquare);
+                target += increment;
+                set_bit!(board, target);
+            }
+        } else if rankdif.abs() == filedif.abs() {
+            let increment = rankdif.signum() * 8 + filedif.signum();
+            let mut target = kingsq;
+            while target != attacksquare {
+                target -= increment;
+                set_bit!(board, target);
+            }
+            target = kingsq;
+            set_bit!(board, target);
+            while target / 8 != 0 || target / 8 != 7 || target % 8 != 0 || target % 8 != 7 {
+                target += increment;
+                set_bit!(board, target);
+            }
+        }
+
+        ray_between[kingsq as usize][attacksquare as usize] = board;
+    }
+}*/
