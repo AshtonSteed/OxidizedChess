@@ -29,16 +29,16 @@ pub struct Board {
     pub pieceboards: [u64; 12], // [P, N, B, R, Q, K, p, n, b, r, q, k]
     pub occupancies: [u64; 3],  // [white occupancies, black occupancies, total occupancies]
     pub side: Option<u8>, // side to move, None for invalid, 0 for white, 1 for black (Color enum)
-    pub enpassant: usize, // enpassant possible square
+    pub enpassant: u64,   // enpassant possible square (as a bitboard)
     pub castle: u8, // castling rights, 4 bits, 0001 1  white king kingside, 0010 2 white king queenside, 0100 4 black king king side, 1000 8 black king queen side
 }
 impl Default for Board {
     fn default() -> Board {
         Board {
-            pieceboards: [0; 12],                             // all boards to 0s
-            occupancies: [0; 3],                              // all occupancies to 0s
-            side: None,                                       // side no worky
-            enpassant: piececonstants::Square::NOSQ as usize, // enpassant possible square, no_sq
+            pieceboards: [0; 12], // all boards to 0s
+            occupancies: [0; 3],  // all occupancies to 0s
+            side: None,           // side no worky
+            enpassant: 0,         // enpassant possible square, no_sq
             castle: 0,
         }
     }
@@ -50,158 +50,166 @@ impl Board {
         let mut moves: Vec<Move> = Vec::new();
         for piece in base..base + 6 {
             bitboard = self.pieceboards[piece];
-            if piece == 0 {
-                // white pawn quiet moves
-                const rank4: u64 = 0x000000FF00000000;
-                let mut pawn_targets = self.pieceboards[0] >> 8 & !self.occupancies[2];
-                let mut double_push = pawn_targets >> 8 & rank4 & !self.occupancies[2];
-                while pawn_targets != 0 {
-                    let target_square = pawn_targets.trailing_zeros(); //gets a bit from the board, removes it
-                    pop_bit!(pawn_targets, target_square);
-                    let source_square = target_square + 8;
-                    if target_square >= piececonstants::Square::A8 as u32
-                        && target_square <= piececonstants::Square::H8 as u32
-                    {
-                        //add 4 promotion moves
-                        moves.push(Move(write_move(
-                            //knight promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            false,
-                            false,
-                        )));
-                        moves.push(Move(write_move(
-                            // bishop promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            false,
-                            true,
-                        )));
-                        moves.push(Move(write_move(
-                            //rook promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            true,
-                            false,
-                        )));
-                        moves.push(Move(write_move(
-                            //queen promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            true,
-                            true,
-                        )));
-                    } else {
-                        // add one square quiet move
-                        moves.push(Move(write_move(
-                            source_square,
-                            target_square,
-                            false,
-                            false,
-                            false,
-                            false,
-                        ))); // normal 1 forward pawn move
-                    }
-                }
-
-                while double_push != 0 {
-                    let target_square = double_push.trailing_zeros(); //gets a bit from the board, removes it
-                    pop_bit!(double_push, target_square);
-                    let source_square = target_square + 16;
-                    moves.push(Move(write_move(
-                        source_square,
-                        target_square,
-                        false,
-                        false,
-                        false,
-                        true,
-                    )))
-                }
-            } else if piece == 6 {
-                // black pawn quiet moves
-                const rank5: u64 = 0x00000000FF000000;
-                let mut pawn_targets = self.pieceboards[6] << 8 & !self.occupancies[2];
-                let mut double_push = pawn_targets << 8 & rank5 & !self.occupancies[2];
-                while pawn_targets != 0 {
-                    let target_square = pawn_targets.trailing_zeros(); //gets a bit from the board, removes it
-                    pop_bit!(pawn_targets, target_square);
-                    let source_square = target_square - 8;
-                    if target_square >= piececonstants::Square::A1 as u32
-                        && target_square <= piececonstants::Square::H1 as u32
-                    {
-                        //add 4 promotion moves
-                        moves.push(Move(write_move(
-                            //knight promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            false,
-                            false,
-                        )));
-                        moves.push(Move(write_move(
-                            // bishop promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            false,
-                            true,
-                        )));
-                        moves.push(Move(write_move(
-                            //rook promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            true,
-                            false,
-                        )));
-                        moves.push(Move(write_move(
-                            //queen promotion
-                            source_square,
-                            target_square,
-                            false,
-                            true,
-                            true,
-                            true,
-                        )));
-                    } else {
-                        // add one square quiet move
-                        moves.push(Move(write_move(
-                            source_square,
-                            target_square,
-                            false,
-                            false,
-                            false,
-                            false,
-                        ))); // normal 1 forward pawn move
-                    }
-                }
-                while double_push != 0 {
-                    let target_square = double_push.trailing_zeros(); //gets a bit from the board, removes it
-                    pop_bit!(double_push, target_square);
-                    let source_square = target_square - 16;
-                    moves.push(Move(write_move(
-                        source_square,
-                        target_square,
-                        false,
-                        false,
-                        false,
-                        true,
-                    )))
-                }
+            match piece {
+                0 => self.white_q_pawn_moves(&mut moves),
+                6 => self.black_q_pawn_moves(&mut moves),
+                _ => continue,
             }
+            if piece == 6 {}
         }
     }
+    fn white_q_pawn_moves(&self, moves: &mut Vec<Move>) {
+        const rank4: u64 = 0x000000FF00000000;
+        let mut pawn_targets = self.pieceboards[0] >> 8 & !self.occupancies[2];
+        let mut double_push = pawn_targets >> 8 & rank4 & !self.occupancies[2];
+        while pawn_targets != 0 {
+            let target_square = pawn_targets.trailing_zeros(); //gets a bit from the board, removes it
+            pop_bit!(pawn_targets, target_square);
+            let source_square = target_square + 8;
+            if target_square >= piececonstants::Square::A8 as u32
+                && target_square <= piececonstants::Square::H8 as u32
+            {
+                //add 4 promotion moves
+                moves.push(Move(write_move(
+                    //knight promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    false,
+                    false,
+                )));
+                moves.push(Move(write_move(
+                    // bishop promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    false,
+                    true,
+                )));
+                moves.push(Move(write_move(
+                    //rook promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    true,
+                    false,
+                )));
+                moves.push(Move(write_move(
+                    //queen promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    true,
+                    true,
+                )));
+            } else {
+                // add one square quiet move
+                moves.push(Move(write_move(
+                    source_square,
+                    target_square,
+                    false,
+                    false,
+                    false,
+                    false,
+                ))); // normal 1 forward pawn move
+            }
+        }
+
+        while double_push != 0 {
+            let target_square = double_push.trailing_zeros(); //gets a bit from the board, removes it
+            pop_bit!(double_push, target_square);
+            let source_square = target_square + 16;
+            moves.push(Move(write_move(
+                source_square,
+                target_square,
+                false,
+                false,
+                false,
+                true,
+            )))
+        }
+    }
+
+    fn black_q_pawn_moves(&self, moves: &mut Vec<Move>) {
+        // black pawn quiet moves
+        const rank5: u64 = 0x00000000FF000000;
+        let mut pawn_targets = self.pieceboards[6] << 8 & !self.occupancies[2];
+        let mut double_push = pawn_targets << 8 & rank5 & !self.occupancies[2];
+        while pawn_targets != 0 {
+            let target_square = pawn_targets.trailing_zeros(); //gets a bit from the board, removes it
+            pop_bit!(pawn_targets, target_square);
+            let source_square = target_square - 8;
+            if target_square >= piececonstants::Square::A1 as u32
+                && target_square <= piececonstants::Square::H1 as u32
+            {
+                //add 4 promotion moves
+                moves.push(Move(write_move(
+                    //knight promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    false,
+                    false,
+                )));
+                moves.push(Move(write_move(
+                    // bishop promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    false,
+                    true,
+                )));
+                moves.push(Move(write_move(
+                    //rook promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    true,
+                    false,
+                )));
+                moves.push(Move(write_move(
+                    //queen promotion
+                    source_square,
+                    target_square,
+                    false,
+                    true,
+                    true,
+                    true,
+                )));
+            } else {
+                // add one square quiet move
+                moves.push(Move(write_move(
+                    source_square,
+                    target_square,
+                    false,
+                    false,
+                    false,
+                    false,
+                ))); // normal 1 forward pawn move
+            }
+        }
+        while double_push != 0 {
+            let target_square = double_push.trailing_zeros(); //gets a bit from the board, removes it
+            pop_bit!(double_push, target_square);
+            let source_square = target_square - 16;
+            moves.push(Move(write_move(
+                source_square,
+                target_square,
+                false,
+                false,
+                false,
+                true,
+            )))
+        }
+    }
+
     pub fn is_square_attacked(&self, square: usize) -> bool {
         // returns true if square is attacked by current side
         let side = self.side.unwrap() != 0;
@@ -269,7 +277,7 @@ impl Board {
         }
         println!(
             "Enpassant:      {}",
-            piececonstants::SQUARE_TO_COORDINATES[self.enpassant]
+            piececonstants::SQUARE_TO_COORDINATES[self.enpassant.trailing_zeros() as usize]
         );
         println!("Castling      {:04b}", self.castle);
     }
@@ -277,7 +285,7 @@ impl Board {
         self.pieceboards = [0; 12]; // all boards to 0s
         self.occupancies = [0; 3]; // all occupancies to 0s
         self.side = None; // side no worky
-        self.enpassant = piececonstants::Square::NOSQ as usize; // enpassant possible square, no_sq
+        self.enpassant = 0; // enpassant possible square, no_sq
         self.castle = 0;
 
         let mut square = 0;
@@ -343,7 +351,8 @@ impl Board {
             let chars: Vec<char> = segments[3].chars().collect();
             let file = chars[0] as usize - 'a' as usize;
             let rank = 8 - (chars[1] as usize - '0' as usize);
-            self.enpassant = rank * 8 + file;
+            self.enpassant = 0;
+            set_bit!(self.enpassant, rank * 8 + file);
         }
 
         //self.enpassant = piececonstants::Square::segments[3].unwrap()

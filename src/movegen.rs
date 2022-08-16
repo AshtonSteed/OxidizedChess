@@ -4,7 +4,8 @@ use crate::print_bitboard;
 
 pub fn refresh(
     // this monstrosity sets pinmasks and checkmasks, allowing for full move generation without needing to individually check move legality after the fact
-    board: &crate::engine::Board,
+    // should be significantly more efficient than generating and checking all naive moves
+    board: &mut crate::engine::Board,
     kingban: &mut u64,
     checkmask: &mut u64,
     rook_pin: &mut u64,
@@ -80,7 +81,14 @@ pub fn refresh(
             // somewhat innefecient, dont care
             let square = atk_hv.trailing_zeros() as usize;
             pop_bit!(atk_hv, square);
-            pin_diag(kingsq, square, raw_side, board.occupancies, bishop_pin);
+            pin_diag(
+                kingsq,
+                square,
+                raw_side,
+                board.occupancies,
+                bishop_pin,
+                &mut board.enpassant,
+            );
         }
     }
 
@@ -102,16 +110,26 @@ fn pin_hv(kingsq: usize, square: usize, side: usize, occupancies: [u64; 3], pins
     }
 }
 
-fn pin_diag(kingsq: usize, square: usize, side: usize, occupancies: [u64; 3], pins: &mut u64) {
+fn pin_diag(
+    kingsq: usize,
+    square: usize,
+    side: usize,
+    occupancies: [u64; 3],
+    pins: &mut u64,
+    enpassant: &mut u64,
+) {
     // pins is diags
     // function checks for pinned pieces, hopefully
     let pinmask = piececonstants::RAY_BETWEEN[kingsq][square];
+    if (pinmask & *enpassant) != 0 {
+        *enpassant = 0;
+    }
     if (pinmask & occupancies[2]).count_ones() == 2 {
         // 1 attacking piece + 1 pinning piece
         *pins |= pinmask & occupancies[side];
     }
 }
 
-// TODO:  need to figure out how the fuck to do enpassant
-// needs something in the pin_diag, some really weird edge cases exist
-// specifically, diagonal pins can be easily done in the Diag thing, but horizontal ones are odd
+// TODO:  need to figure out how the fuck to do enpassant with weird pin stuff
+
+// some weird horizontal pins exist

@@ -49,7 +49,7 @@ fn main() {
         ..Default::default()
     };
 
-    board.parse_fen("8/2n5/8/1K1B11r1/8/8/8/8 w - - 0 1");
+    board.parse_fen("8/2n5/8/1K1B11r1/8/3q4/8/8 w - - 0 1");
 
     board.print_attacks();
 
@@ -57,7 +57,7 @@ fn main() {
 
     board.generate_moves();
 
-    movegen::refresh(&board, &mut 0, &mut 0, &mut 0, &mut 0);
+    movegen::refresh(&mut board, &mut 0, &mut 0, &mut 0, &mut 0);
 
     //print_bitboard(board.occupancies[0]);
     //let tic = Instant::now();
