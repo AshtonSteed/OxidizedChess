@@ -1,13 +1,23 @@
 #![allow(dead_code)]
 
+use movegen::generate_moves;
+use piececonstants::RAY_BETWEEN;
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 mod engine;
+use moves::{make_move, score_move, MoveStuff};
+use rand::Rng;
+use uci::uci_loop;
+
+use crate::engine::Board;
 mod movegen;
+mod moves;
 mod piececonstants;
 mod pieceinit;
-
+mod search;
+mod uci;
 //                                          enums and constants
 /*const NOTAFILE: u64 = 18374403900871474942; // masks giving 1s for all files but the edge files
 const NOTHFILE: u64 = 9187201950435737471; //probably not needed in this file
@@ -45,89 +55,37 @@ pub fn print_bitboard(bitboard: u64) -> () {
 //use std::time::{Duration, Instant};
 
 fn main() {
-    let mut board = engine::Board {
-        ..Default::default()
-    };
+    // TODO: movescoring remake (maybe), Time control stuff,  figure out how to test ELO and refine values
+    // also add a system to keep track of gamestate over time and check for repititions better
+    // futility pruning could be useful
 
-    board.parse_fen("8/2n5/8/1K1B11r1/8/3q4/8/8 w - - 0 1");
-
-    board.print_attacks();
-
-    board.print_board();
-
-    board.generate_moves();
-
-    movegen::refresh(&mut board, &mut 0, &mut 0, &mut 0, &mut 0);
-
-    //print_bitboard(board.occupancies[0]);
-    //let tic = Instant::now();
-
-    /*for square in 0..64 {
-        print_bitboard(get_rook_attacks(square, occupancy));
-    }*/
-    //let toc = Instant::now();
-
-    //println!("{:#?}", SLIDER_STUFF_2);
+    uci_loop();
 }
 
-//probably obsolete raw generator
+/*  let king_attack = movegen::refresh(&mut board);
+a
+println!("King Moves");
+print_bitboard(king_attack);
+println!("Attacked Squares");
+print_bitboard(board.movemasks[0]);
 
-/*let mut ray_between: [[u64; 64]; 64] = [[0; 64]; 64];
-for kingsq in 0..64 as i32 {
-    for attacksquare in 0..64 as i32 {
-        let mut board: u64 = 0;
-        let kingrank = kingsq / 8;
-        let kingfile = kingsq % 8;
-        let attackrank = attacksquare / 8;
-        let attackfile = attacksquare % 8;
-        let rankdif = kingrank - attackrank;
-        let filedif = kingfile - attackfile;
-        if rankdif == 0 && filedif == 0 {
-            // case where atk square and king overlap, no fill needed
-            continue;
-        } else if filedif == 0 {
-            let increment = rankdif.signum() * 8;
-            let mut target = kingsq;
-            while target != attacksquare {
-                target -= increment;
-                set_bit!(board, target);
-            }
-            target = kingsq;
-            set_bit!(board, target);
-            while target / 8 != 0 || target / 8 != 7 {
-                set_bit!(board, target);
-                target += increment;
-            }
-        } else if rankdif == 0 {
-            let increment = filedif.signum();
-            let mut target = kingsq;
-            while target != attacksquare {
-                target -= increment;
-                set_bit!(board, target);
-            }
-            target = kingsq;
-            set_bit!(board, target);
-            while target % 8 != 0 || target % 8 != 7 {
-                print_bitboard(board);
-                println!("{}, {}", kingsq, attacksquare);
-                target += increment;
-                set_bit!(board, target);
-            }
-        } else if rankdif.abs() == filedif.abs() {
-            let increment = rankdif.signum() * 8 + filedif.signum();
-            let mut target = kingsq;
-            while target != attacksquare {
-                target -= increment;
-                set_bit!(board, target);
-            }
-            target = kingsq;
-            set_bit!(board, target);
-            while target / 8 != 0 || target / 8 != 7 || target % 8 != 0 || target % 8 != 7 {
-                target += increment;
-                set_bit!(board, target);
-            }
-        }
+println!("Checking Mask");
+print_bitboard(board.movemasks[1]);
 
-        ray_between[kingsq as usize][attacksquare as usize] = board;
-    }
-}*/
+println!("Horizontal Pins");
+print_bitboard(board.movemasks[2]);
+
+println!("Diagonal Pins");
+print_bitboard(board.movemasks[3]);
+
+println!("Enpassant Target");
+print_bitboard(board.enpassant);
+
+let moves = movegen::generate_moves(&mut board);
+for a in &moves {
+    a.print()
+}
+println!("Moves: {}", moves.len());
+board.print_board();
+moves::make_move(&mut board, moves[0]);
+board.print_board(); */

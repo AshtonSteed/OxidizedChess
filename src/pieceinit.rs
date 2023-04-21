@@ -430,7 +430,7 @@ fn set_occupancy(magic_index: usize, mut attack_mask: u64) -> u64 {
     }
     occupancy
 }
-fn get_random_number() -> u64 {
+pub fn get_random_number() -> u64 {
     let mut rng = rand::thread_rng();
     let x: u64 = rng.gen();
     let y: u64 = rng.gen();
