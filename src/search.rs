@@ -58,6 +58,7 @@ impl Transpositiontable {
             // || (key != entry.0 && entry.3 & 1 == 0) this should check to see if the node is a pv, in theory doesnt replace
             // replaces only if depth is greater than current depth. This helps perserve PV, ill see if theres a better way though
             //println!("collision: {}", entry.0 != key);
+            // m as entry.1?
             self.0[index as usize] = (key, m, depth, score);
         }
     }
@@ -81,7 +82,7 @@ impl Repititiontable {
     #[inline(always)]
     pub fn set_value(&mut self, key: u64, value: bool) -> bool {
         let index = (key & (piececonstants::RTABLEMASK as u64)) as usize;
-        let output = self.0[index];
+        let output = self.0[index].clone();
         self.0[index] = value;
         return output;
     }
@@ -239,18 +240,19 @@ pub fn negamax(
     } else if rtable.set_value(key, true) {
         // i really need to figure this out better
         // handles repitions, considers single repitions as zeros
-        for i in (0..ply).step_by(2) {
+        /*
+        for i in (2..ply).step_by(2) {
+            println!("ply: {}, i: {}, Ply - i{}", ply, i, ply - i);
             if key == positionstack[ply - i].key {
-                //println!("repeated");
-                //positionstack[ply].print_board();
-                ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
+                positionstack[ply].print_board();
+                ttable.set_value(key, 0, depth, piececonstants::CONTEMPT);
                 return piececonstants::CONTEMPT;
             } else {
                 continue;
             }
-        }
-        //ttable.set_value(key, 0, 10, piececonstants::CONTEMPT);
-        //return 0;
+        } */
+        ttable.set_value(key, 0, depth, piececonstants::CONTEMPT);
+        return piececonstants::CONTEMPT;
 
         //return 0;
     }
