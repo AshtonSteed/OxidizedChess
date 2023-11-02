@@ -14,7 +14,7 @@
 // 1100 - 1111 same as promotions but captures
 
 //pub struct Move(u16);
-use crate::{engine, piececonstants, print_bitboard};
+use crate::{engine, piececonstants};
 
 pub use u16 as Move;
 
@@ -235,7 +235,14 @@ pub fn null_move(board: &mut engine::Board) {
 // returns -score of move, lower the better for sorting purposes
 // we need to make this way better for PVS
 
-pub fn score_move(m: &u16, board: &engine::Board, tmove: Option<u16>, killers: &[u16; 2]) -> i32 {
+pub fn score_move(
+    m: &u16,
+    board: &engine::Board,
+    tmove: Option<u16>,
+    killers: &[u16; 2],
+    history: &[[usize; 64]; 64],
+    maxh: usize,
+) -> i32 {
     // PV / ttable move
     if Some(*m) == tmove {
         //println!("PV");
@@ -244,12 +251,11 @@ pub fn score_move(m: &u16, board: &engine::Board, tmove: Option<u16>, killers: &
 
     let initsq = m.get_initial() as usize;
     let attacker = board.get_attacker(initsq);
-
+    let finalsq = m.get_final() as usize;
     let extra = m.get_extra();
 
     // captures
     if extra & 4 != 0 {
-        let finalsq = m.get_final() as usize;
         match board.get_target(finalsq) {
             Some(target) => return -piececonstants::MVV_LVA[attacker][target],
             // enpassant, pawn takes pawn
@@ -259,11 +265,14 @@ pub fn score_move(m: &u16, board: &engine::Board, tmove: Option<u16>, killers: &
         if *m == killers[0] || *m == killers[1] {
             return -100;
         }
-        //promotion
-        /*if extra & 8 != 0 {
+        //promotion0=
+        if extra & 8 != 0 {
             return -piececonstants::PIECEWEIGHT[extra as usize & 3 + 1] / 10;
-        }*/
-        return 0;
+        }
+
+        let hval = 90 * history[initsq][finalsq] / maxh;
+
+        return -(hval as i32);
     }
     //println!("Move: {} Score: {}", m.to_uci(), score); 3712990
 }

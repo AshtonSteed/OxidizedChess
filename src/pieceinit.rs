@@ -279,7 +279,7 @@ pub fn rook_attacks_on_fly(square: i8, block: u64) -> u64 {
     let targetrank = square / 8;
     let targetfile = square % 8;
 
-    let mut r = targetrank;
+    let mut r;
     let mut f = targetfile;
 
     //generate rook attacks

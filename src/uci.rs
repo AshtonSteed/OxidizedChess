@@ -1,7 +1,7 @@
 use crate::engine::Board;
 use crate::movegen::generate_moves;
 use crate::moves::{make_move, MoveStuff};
-use crate::search::{search_position, Repititiontable, Transpositiontable};
+use crate::search::{search_position, Transpositiontable};
 
 use std::io::{self, BufRead};
 use std::time::{Duration, Instant};
@@ -55,7 +55,8 @@ pub fn parse_go(
     input: String,
     board: &mut Board,
     ttable: &mut Transpositiontable,
-    rtable: &mut Repititiontable,
+    history: &mut Vec<u64>,
+    halfcount: &mut usize,
 ) {
     let split = input.split(' ');
     let segments: Vec<&str> = split.collect();
@@ -65,13 +66,21 @@ pub fn parse_go(
             crate::piececonstants::MAXPLY,
             Duration::from_millis(segments[2].parse().unwrap()),
         ),
-        _ => (10, Duration::MAX), // placeholder for other moves, default to depth of 6
+        _ => (10, Duration::MAX), // placeholder for other moves, default to depth of 10
     };
     //println!("{}", timelimit.as_secs());
-    println!(
-        "bestmove {}",
-        search_position(board, depth, timelimit, ttable, rtable)
-    );
+    if history.len() > 0 && history[0] != board.key {
+        *halfcount += 1;
+        history.insert(0, board.key);
+    }
+    let m = search_position(board, depth, timelimit, ttable, history, halfcount.clone());
+    println!("bestmove {}", m.to_uci());
+    let mut temp = board.clone();
+    make_move(&mut temp, m);
+
+    history.insert(0, board.key.clone());
+
+    *halfcount += 1;
 }
 
 pub fn communicate(stopped: &mut bool, starttime: Instant, timelimit: Duration) {
@@ -89,7 +98,9 @@ pub fn uci_loop() {
     };
 
     let mut ttable = Transpositiontable::new(); // transpotion table
-    let mut rtable = Repititiontable::new(); // repitiion table
+                                                //let mut rtable = Repititiontable::new(); // repitiion table
+    let mut history: Vec<u64> = vec![];
+    let mut halfclock: usize = 0;
     while let Some(line) = lines.next() {
         let input = line.unwrap().to_string();
         let split = input.split(' ');
@@ -106,14 +117,19 @@ pub fn uci_loop() {
                     ..Default::default()
                 };
                 ttable = Transpositiontable::new();
-                rtable = Repititiontable::new();
+                //rtable = Repititiontable::new();
+                history = vec![];
+                halfclock = 0;
                 // TODO: add anything else that needs reset in new game
             }
             "position" => {
                 parse_position(input, &mut board);
+                //history.insert(0, board.key.clone());
+                //cahalfclock += 1;
             }
             "go" => {
-                parse_go(input, &mut board, &mut ttable, &mut rtable); // analyze board position
+                parse_go(input, &mut board, &mut ttable, &mut history, &mut halfclock);
+                // analyze board position
             }
             "quit" => break,
 

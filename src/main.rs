@@ -1,17 +1,15 @@
 #![allow(dead_code)]
-
-use movegen::generate_moves;
-use piececonstants::RAY_BETWEEN;
+#![allow(non_snake_case)]
 
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 mod engine;
-use moves::{make_move, score_move, MoveStuff};
+
+use engine::BitBoard;
 use rand::Rng;
 use uci::uci_loop;
 
-use crate::engine::Board;
 mod movegen;
 mod moves;
 mod piececonstants;
@@ -25,28 +23,6 @@ const NOTHGFILE: u64 = 4557430888798830399;
 const NOTABFILE: u64 = 18229723555195321596;*/
 //use .count_ones to count bits
 //use .trailing_zeros to find least significant bit index
-
-pub fn print_bitboard(bitboard: u64) -> () {
-    //prints a bitboard
-    println!();
-    for rank in 0..8 {
-        for file in 0..8 {
-            // init board square, turn file and rank into square
-            let square = rank * 8 + file;
-            //print!("{}", square);
-            if file == 0 {
-                print!("{}  ", 8 - rank);
-            }
-            //println!("{}", bitboard & 1u64 << square);
-            print!("{} ", get_bit!(bitboard, square));
-        }
-        //print new line to seperate ranks
-        println!();
-    }
-    println!("   a b c d e f g h");
-
-    println!("Bitboard Value: {}", bitboard)
-}
 
 //                                              attacks
 

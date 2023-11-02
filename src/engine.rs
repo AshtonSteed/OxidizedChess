@@ -1,38 +1,5 @@
-use crate::{
-    movegen::{self, generate_captures, generate_moves},
-    moves::{self, make_move, null_move, MoveStuff},
-    piececonstants, print_bitboard,
-    uci::communicate,
-};
-use std::{
-    cmp::{max, min},
-    time::{Duration, Instant},
-};
+use crate::{movegen, moves, piececonstants};
 
-//          Bit macros
-macro_rules! get_bit {
-    //returns either 1 or 0, depending on if the square is a active bit
-    ($bb:expr, $square:expr) => {
-        if ($bb & 1u64 << $square) != 0 {
-            1
-        } else {
-            0
-        } // if statement checks if the and operator
-          // between bitboard and square is non zero, checks and returns square bit value
-    };
-}
-macro_rules! set_bit {
-    //sets a bit on a board to a 1
-    ($bb:expr, $square:expr) => {
-        $bb |= 1u64 << $square // takes the or between the bitboard the the shifted square number
-    };
-}
-macro_rules! pop_bit {
-    //sets a bit on a board to a 0
-    ($bb:expr, $square:expr) => {
-        $bb &= !(1u64 << $square) // takes the nand between the bitboard and the shifted square
-    };
-}
 #[derive(Copy, Clone)]
 pub struct Board {
     pub pieceboards: [u64; 12], // [P, N, B, R, Q, K, p, n, b, r, q, k]
@@ -135,11 +102,11 @@ impl Board {
             for file in 0..8 {
                 let square = rank * 8 + file;
                 if self.is_square_attacked(square) {
-                    set_bit!(attackboard, square);
+                    attackboard.set_bit(square);
                 }
             }
         }
-        crate::print_bitboard(attackboard);
+        attackboard.print_bitboard()
     }
     pub fn print_board(&self) -> () {
         for rank in 0..8 {
@@ -152,7 +119,7 @@ impl Board {
 
                 let mut piece: Option<usize> = None;
                 for array in 0..12 {
-                    if get_bit!(self.pieceboards[array], square) == 1 {
+                    if self.pieceboards[array].get_bit(square) == 1 {
                         piece = Some(array);
                     }
                 }
@@ -210,18 +177,18 @@ impl Board {
                         _ => 12,
                     };
                     if piece != 12 {
-                        set_bit!(self.pieceboards[piece], square);
-                        set_bit!(self.occupancies[2], square);
+                        self.pieceboards[piece].set_bit(square);
+                        self.occupancies[2].set_bit(square);
                         self.key ^= piececonstants::PIECEKEYS[piece][square as usize];
                         if piece < 6 {
-                            set_bit!(self.occupancies[0], square);
+                            self.occupancies[0].set_bit(square);
                         } else {
-                            set_bit!(self.occupancies[1], square);
+                            self.occupancies[1].set_bit(square);
                         }
                     }
                     square += 1;
                 }
-                true => square += c as u32 - '0' as u32,
+                true => square += c as usize - '0' as usize,
             };
         }
         //w KQkq - 0 1
@@ -239,10 +206,10 @@ impl Board {
 
         for c in segments[2].chars() {
             match c {
-                'K' => self.castle += piececonstants::Castling::wk as u8,
-                'Q' => self.castle += piececonstants::Castling::wq as u8,
-                'k' => self.castle += piececonstants::Castling::bk as u8,
-                'q' => self.castle += piececonstants::Castling::bq as u8,
+                'K' => self.castle += piececonstants::Castling::Wk as u8,
+                'Q' => self.castle += piececonstants::Castling::Wq as u8,
+                'k' => self.castle += piececonstants::Castling::Bk as u8,
+                'q' => self.castle += piececonstants::Castling::Bq as u8,
                 '-' => (),
                 _ => break,
             }
@@ -270,7 +237,7 @@ impl Board {
             let mut wpieces = self.pieceboards[i];
             for _j in 0..wpieces.count_ones() {
                 let square = wpieces.trailing_zeros() as usize;
-                pop_bit!(wpieces, square);
+                wpieces.pop_bit(square);
                 phase += piececonstants::PHASEWEIGHT[i];
                 midgame += piececonstants::MIDGAMETABLE[i][square];
                 endgame += piececonstants::ENDGAMETABLE[i][square];
@@ -279,20 +246,15 @@ impl Board {
             for _j in 0..bpieces.count_ones() {
                 let square = bpieces.trailing_zeros() as usize;
 
-                pop_bit!(bpieces, square);
+                bpieces.pop_bit(square);
                 phase += piececonstants::PHASEWEIGHT[i];
                 midgame -= piececonstants::MIDGAMETABLE[i][square ^ 56];
                 endgame -= piececonstants::ENDGAMETABLE[i][square ^ 56];
             }
         }
-        let factor = min(
-            1,
-            max(
-                0,
-                (phase - piececonstants::ENDGAME)
-                    / (piececonstants::MIDGAME - piececonstants::ENDGAME),
-            ),
-        );
+        let factor = 1.min(0.max(
+            (phase - piececonstants::ENDGAME) / (piececonstants::MIDGAME - piececonstants::ENDGAME),
+        ));
         return (factor * midgame + (1 - factor) * endgame) * 4 * side;
     }
 }
@@ -343,4 +305,59 @@ pub fn perft_div(
         i += 1;
     }
     count
+}
+pub trait BitBoard {
+    fn left(&self) -> u64;
+    fn right(&self) -> u64;
+    fn get_bit(&self, index: usize) -> usize;
+    fn print_bitboard(&self);
+    fn set_bit(&mut self, square: usize);
+    fn pop_bit(&mut self, square: usize);
+}
+
+impl BitBoard for u64 {
+    fn left(&self) -> u64 {
+        return (self >> 1) & 9187201950435737471;
+    }
+    fn right(&self) -> u64 {
+        return (self << 1) & 18374403900871474942;
+    }
+    fn print_bitboard(&self) -> () {
+        //prints a bitboard
+        println!();
+        for rank in 0..8 {
+            for file in 0..8 {
+                // init board square, turn file and rank into square
+                let square = rank * 8 + file;
+                //print!("{}", square);
+                if file == 0 {
+                    print!("{}  ", 8 - rank);
+                }
+                //println!("{}", bitboard & 1u64 << square);
+                print!("{} ", self.get_bit(square));
+            }
+            //print new line to seperate ranks
+            println!();
+        }
+        println!("   a b c d e f g h");
+
+        println!("Bitboard Value: {}", self)
+    }
+    #[inline(always)]
+    fn get_bit(&self, square: usize) -> usize {
+        if (*self & 1u64 << square) != 0 {
+            1
+        } else {
+            0
+        } // if statement checks if the and operator
+          // between bitboard and square is non zero, checks and returns square bit value
+    }
+    #[inline(always)]
+    fn set_bit(&mut self, square: usize) {
+        *self |= 1u64 << square;
+    }
+    #[inline(always)]
+    fn pop_bit(&mut self, square: usize) {
+        *self &= !(1u64 << square);
+    }
 }
