@@ -6,7 +6,7 @@ extern crate lazy_static;
 #[macro_use]
 mod engine;
 
-use engine::BitBoard;
+use engine::{BitBoard, Board};
 use rand::Rng;
 use uci::uci_loop;
 
@@ -30,12 +30,18 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 
 //use std::time::{Duration, Instant};
 
+//cargo rustc --bin OxidizedChess --release -- -Z emit-stack-sizes
+
 fn main() {
     // TODO: movescoring remake (maybe), Time control stuff,  figure out how to test ELO and refine values
     // also add a system to keep track of gamestate over time and check for repititions better
     // futility pruning could be useful
 
     uci_loop();
+    /*let mut board = Board::default();
+    board.parse_fen("8/8/8/3p4/2N5/6pP/6P1/8 w - - 0 1".to_string());
+    board.evaluate();
+    board.print_board();*/
 }
 
 /*  let king_attack = movegen::refresh(&mut board);

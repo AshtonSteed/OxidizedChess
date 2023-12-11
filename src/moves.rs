@@ -100,7 +100,7 @@ impl MoveStuff for Move {
     }
 }
 
-pub fn make_move(board: &mut crate::engine::Board, movement: Move) {
+pub fn make_move(board: &mut crate::engine::Board, movement: &Move) {
     let initial_square = movement.get_initial() as usize;
     let final_square = movement.get_final() as usize;
     let extra = movement.get_extra();
@@ -234,19 +234,19 @@ pub fn null_move(board: &mut engine::Board) {
 }
 // returns -score of move, lower the better for sorting purposes
 // we need to make this way better for PVS
-
+#[inline(always)]
 pub fn score_move(
     m: &u16,
     board: &engine::Board,
     tmove: Option<u16>,
-    killers: &[u16; 2],
-    history: &[[usize; 64]; 64],
+    killers: &Vec<u16>,
+    history: &Vec<Vec<usize>>,
     maxh: usize,
 ) -> i32 {
     // PV / ttable move
     if Some(*m) == tmove {
         //println!("PV");
-        return -1000;
+        return 1000;
     }
 
     let initsq = m.get_initial() as usize;
@@ -257,22 +257,79 @@ pub fn score_move(
     // captures
     if extra & 4 != 0 {
         match board.get_target(finalsq) {
-            Some(target) => return -piececonstants::MVV_LVA[attacker][target],
-            // enpassant, pawn takes pawn
-            None => return -105,
+            Some(target) => return piececonstants::MVV_LVA[attacker][target],
+            // enpassant, pawn takes pawn but a bit more interesting
+            None => return 120,
         }
     } else {
         if *m == killers[0] || *m == killers[1] {
-            return -100;
+            return 100;
         }
-        //promotion0=
+
+        //promotion and then castling
         if extra & 8 != 0 {
-            return -piececonstants::PIECEWEIGHT[extra as usize & 3 + 1] / 10;
+            return piececonstants::PIECEWEIGHT[extra as usize & 3 + 1] / 10;
+        } else if extra & 2 != 0 {
+            return 95;
         }
 
-        let hval = 90 * history[initsq][finalsq] / maxh;
+        let hval = 1 + 90 * history[initsq][finalsq] / maxh;
 
-        return -(hval as i32);
+        return hval as i32;
     }
     //println!("Move: {} Score: {}", m.to_uci(), score); 3712990
+}
+#[inline]
+fn shift_down(moves: &mut [u16], scores: &mut [i32], start: usize, end: usize) {
+    let mut root = start;
+
+    loop {
+        let mut child = root * 2 + 1;
+        if child > end {
+            break;
+        }
+        if child + 1 <= end && &scores[child] < &scores[child + 1] {
+            child += 1;
+        }
+        if &scores[root] < &scores[child] {
+            scores.swap(root, child);
+            moves.swap(root, child);
+            root = child
+        } else {
+            break;
+        }
+    }
+}
+#[inline]
+pub fn build_min_heap(moves: &mut [u16], scores: &mut [i32], size: usize) {
+    // Build a min heap.
+    for i in (0..size / 2).rev() {
+        shift_down(moves, scores, i, size - 1);
+    }
+}
+
+#[inline]
+pub fn next_move(moves: &mut [u16], scores: &mut [i32], size: usize, i: usize) {
+    let end = size - i - 1;
+
+    // Extract elements one by one
+    if end == 0 {
+        return;
+    }
+
+    scores.swap(0, end); // Swap
+    moves.swap(0, end);
+
+    shift_down(moves, scores, 0, end - 1);
+    /*
+    let mut max = 0;
+    let mut k = 0;
+    for i in 0..(size - i) {
+        if scores[i] > max {
+            k = i;
+            max = scores[i];
+        }
+    }
+    scores.swap(k, end);
+    moves.swap(k, end);*/
 }

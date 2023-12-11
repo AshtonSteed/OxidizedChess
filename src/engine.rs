@@ -29,41 +29,47 @@ impl Board {
         // only used
         let side = self.side.unwrap() != 0;
         let base = side as usize * 6;
-        if piececonstants::PAWN_ATTACKS[!side as usize][square] & self.pieceboards[base] != 0 {
-            return true;
-        } else if piececonstants::KNIGHT_ATTACKS[square] & self.pieceboards[base + 1] != 0 {
-            return true;
-        } else if piececonstants::KING_ATTACKS[square] & self.pieceboards[base + 5] != 0 {
-            return true;
-        } else if piececonstants::get_bishop_attacks(square, self.occupancies[2])
-            & (self.pieceboards[base + 2] | self.pieceboards[base + 4])
-            != 0
-        {
-            return true;
-        } else if piececonstants::get_rook_attacks(square, self.occupancies[2])
-            & (self.pieceboards[base + 3] | self.pieceboards[base + 4])
-            != 0
-        {
-            return true;
-        } else {
-            return false;
-        }
+
+        let attacked = (piececonstants::PAWN_ATTACKS[!side as usize][square]
+            & self.pieceboards[base])
+            | (piececonstants::KNIGHT_ATTACKS[square] & self.pieceboards[base + 1])
+            | (piececonstants::KING_ATTACKS[square] & self.pieceboards[base + 5])
+            | (piececonstants::get_bishop_attacks(square, self.occupancies[2])
+                & (self.pieceboards[base + 2] | self.pieceboards[base + 4]))
+            | (piececonstants::get_rook_attacks(square, self.occupancies[2])
+                & (self.pieceboards[base + 3] | self.pieceboards[base + 4]));
+        return attacked != 0;
     }
+    pub fn is_repeat(&self, next: &Board) -> bool {
+        let mut differences = 0;
+        for i in 0..12 {
+            if self.pieceboards[i] != next.pieceboards[i] {
+                if i == 0 || i == 6 {
+                    return false;
+                }
+                differences += 1;
+            }
+        }
+        return differences < 2;
+    }
+
     pub fn is_king_attacked(&self) -> bool {
-        let side = self.side.unwrap() == 1; // false for white, true for black
-        let base = !side as usize * 6; // enemy base score
-        let square = self.pieceboards[side as usize * 6 + 5].trailing_zeros() as usize;
+        let side: bool = self.side.unwrap() == 0; // true for white, false for black
+        let selfside = !side;
+        let base = side as usize * 6; // enemy base score
+        let square = self.pieceboards[selfside as usize * 6 + 5].trailing_zeros() as usize;
         //self.print_board();
 
-        return piececonstants::PAWN_ATTACKS[side as usize][square] & self.pieceboards[base] != 0
-            || piececonstants::KNIGHT_ATTACKS[square] & self.pieceboards[base + 1] != 0
-            || piececonstants::get_bishop_attacks(square, self.occupancies[2])
-                & (self.pieceboards[base + 2] | self.pieceboards[base + 4])
-                != 0
-            || piececonstants::get_rook_attacks(square, self.occupancies[2])
-                & (self.pieceboards[base + 3] | self.pieceboards[base + 4])
-                != 0;
+        let attacked = (piececonstants::PAWN_ATTACKS[!side as usize][square]
+            & self.pieceboards[base])
+            | (piececonstants::KNIGHT_ATTACKS[square] & self.pieceboards[base + 1])
+            | (piececonstants::get_bishop_attacks(square, self.occupancies[2])
+                & (self.pieceboards[base + 2] | self.pieceboards[base + 4]))
+            | (piececonstants::get_rook_attacks(square, self.occupancies[2])
+                & (self.pieceboards[base + 3] | self.pieceboards[base + 4]));
+        return attacked != 0;
     }
+
     #[inline(always)]
     pub fn get_attacker(&self, square: usize) -> usize {
         // assumes that piece is of current side
@@ -226,6 +232,7 @@ impl Board {
 
         //self.enpassant = piececonstants::Square::segments[3].unwrap()
     }
+    #[inline(always)]
     pub fn evaluate(&mut self) -> i32 {
         let side = (self.side == Some(0)) as i32 * 2 - 1;
 
@@ -233,6 +240,18 @@ impl Board {
         let mut midgame = 0;
         let mut endgame = 0;
         let mut phase = 0;
+        let mut mobility = 0;
+        let mut virtual_mobility = 0;
+
+        // Use of helper boards to find isolated, passed, and double pawns
+
+        let mut wiso = 0u64;
+        let mut wspan = 0u64;
+
+        let mut biso = 0u64;
+        let mut bspan = 0u64;
+
+        // Most pieces
         for i in 0..6 {
             let mut wpieces = self.pieceboards[i];
             for _j in 0..wpieces.count_ones() {
@@ -241,6 +260,43 @@ impl Board {
                 phase += piececonstants::PHASEWEIGHT[i];
                 midgame += piececonstants::MIDGAMETABLE[i][square];
                 endgame += piececonstants::ENDGAMETABLE[i][square];
+                match i {
+                    0 => {
+                        wiso |= piececonstants::CLOSEFILES[square & 7];
+                        wspan |= piececonstants::PAWNSPANS[0][square];
+                        mobility += (piececonstants::PAWN_ATTACKS[0][square] & self.occupancies[1])
+                            .count_ones() as i32;
+                    }
+                    1 => {
+                        mobility += (piececonstants::KNIGHT_ATTACKS[square] & !self.occupancies[0])
+                            .count_ones() as i32;
+                    }
+                    2 => {
+                        mobility +=
+                            (piececonstants::get_bishop_attacks(square, self.occupancies[2])
+                                & !self.occupancies[0])
+                                .count_ones() as i32;
+                    }
+                    3 => {
+                        mobility += (piececonstants::get_rook_attacks(square, self.occupancies[2])
+                            & !self.occupancies[0])
+                            .count_ones() as i32;
+                    }
+                    4 => {
+                        mobility += (piececonstants::get_queen_attacks(square, self.occupancies[2])
+                            & !self.occupancies[0])
+                            .count_ones() as i32;
+                    }
+                    5 => {
+                        mobility += (piececonstants::KING_ATTACKS[square] & !self.occupancies[0])
+                            .count_ones() as i32;
+                        virtual_mobility +=
+                            (piececonstants::get_queen_attacks(square, self.occupancies[2])
+                                & !self.occupancies[0])
+                                .count_ones() as i32;
+                    }
+                    _ => {}
+                }
             }
             let mut bpieces = self.pieceboards[i + 6];
             for _j in 0..bpieces.count_ones() {
@@ -250,12 +306,79 @@ impl Board {
                 phase += piececonstants::PHASEWEIGHT[i];
                 midgame -= piececonstants::MIDGAMETABLE[i][square ^ 56];
                 endgame -= piececonstants::ENDGAMETABLE[i][square ^ 56];
+
+                match i {
+                    0 => {
+                        biso |= piececonstants::CLOSEFILES[square & 7];
+                        bspan |= piececonstants::PAWNSPANS[1][square];
+                        mobility -= (piececonstants::PAWN_ATTACKS[1][square] & self.occupancies[0])
+                            .count_ones() as i32;
+                    }
+                    1 => {
+                        mobility -= (piececonstants::KNIGHT_ATTACKS[square] & !self.occupancies[1])
+                            .count_ones() as i32;
+                    }
+                    2 => {
+                        mobility -=
+                            (piececonstants::get_bishop_attacks(square, self.occupancies[2])
+                                & !self.occupancies[1])
+                                .count_ones() as i32;
+                    }
+                    3 => {
+                        mobility -= (piececonstants::get_rook_attacks(square, self.occupancies[2])
+                            & !self.occupancies[1])
+                            .count_ones() as i32;
+                    }
+                    4 => {
+                        mobility -= (piececonstants::get_queen_attacks(square, self.occupancies[2])
+                            & !self.occupancies[1])
+                            .count_ones() as i32;
+                    }
+                    5 => {
+                        mobility -= (piececonstants::KING_ATTACKS[square] & !self.occupancies[1])
+                            .count_ones() as i32;
+                        virtual_mobility -=
+                            (piececonstants::get_queen_attacks(square, self.occupancies[2])
+                                & !self.occupancies[1])
+                                .count_ones() as i32;
+                    }
+                    _ => {}
+                }
             }
         }
-        let factor = 1.min(0.max(
-            (phase - piececonstants::ENDGAME) / (piececonstants::MIDGAME - piececonstants::ENDGAME),
+        // Pawn structure summations, W is positive7
+        let doublepawns = ((wspan & self.pieceboards[0]).count_ones() as i32
+            - (self.pieceboards[6] & bspan).count_ones() as i32);
+        let passedpawns = ((!(bspan | bspan.left() | bspan.right()) & self.pieceboards[0])
+            .count_ones() as i32
+            - (!(wspan | wspan.left() | wspan.right()) & self.pieceboards[6]).count_ones() as i32);
+        let isopawns = ((self.pieceboards[0] & !wiso).count_ones() as i32
+            - (self.pieceboards[6] & !biso).count_ones() as i32);
+
+        //println!("{} {} {}", doublepawns, passedpawns, isopawns);
+        midgame += passedpawns * piececonstants::PAWN_STRUCTURE_VALUES[0][0]
+            + isopawns * piececonstants::PAWN_STRUCTURE_VALUES[0][1]
+            + doublepawns * piececonstants::PAWN_STRUCTURE_VALUES[0][2];
+        endgame += passedpawns * piececonstants::PAWN_STRUCTURE_VALUES[1][0]
+            + isopawns * piececonstants::PAWN_STRUCTURE_VALUES[1][1]
+            + doublepawns * piececonstants::PAWN_STRUCTURE_VALUES[1][2];
+
+        //                            Mobility
+
+        // finish pawn forward move mobility
+        mobility += ((self.pieceboards[0] << 8) & !self.occupancies[2]).count_ones() as i32
+            - ((self.pieceboards[6] << 8) & !self.occupancies[2]).count_ones() as i32;
+        midgame += mobility / piececonstants::MOBILITY_SCALE;
+        endgame += mobility / piececonstants::MOBILITY_SCALE;
+
+        let factor = 1.0_f64.min(0.0_f64.max(
+            (phase as f64 - piececonstants::ENDGAME)
+                / (piececonstants::MIDGAME - piececonstants::ENDGAME),
         ));
-        return (factor * midgame + (1 - factor) * endgame) * 4 * side;
+
+        //let factor = 1.0 / (1.0 + (-0.002 * phase as f64 + 5.6).exp());
+
+        return (factor * midgame as f64 + (1. - factor) * endgame as f64) as i32 * 4 * side;
     }
 }
 
@@ -273,7 +396,7 @@ pub fn perft_test(
 
     for m in 0..index {
         let mut boardcopy = positionstack[*ply].clone();
-        moves::make_move(&mut boardcopy, movestack[*ply][m]);
+        moves::make_move(&mut boardcopy, &movestack[*ply][m]);
         *ply += 1;
         positionstack[*ply] = boardcopy;
         count += perft_test(positionstack, movestack, ply, depth - 1);
@@ -294,7 +417,7 @@ pub fn perft_div(
     let mut i = 0;
     for m in 0..index {
         let mut boardcopy = positionstack[*ply].clone();
-        moves::make_move(&mut boardcopy, movestack[*ply][m]);
+        moves::make_move(&mut boardcopy, &movestack[*ply][m]);
         *ply += 1;
         positionstack[*ply] = boardcopy;
         count[i] = (
@@ -316,9 +439,11 @@ pub trait BitBoard {
 }
 
 impl BitBoard for u64 {
+    #[inline(always)]
     fn left(&self) -> u64 {
         return (self >> 1) & 9187201950435737471;
     }
+    #[inline(always)]
     fn right(&self) -> u64 {
         return (self << 1) & 18374403900871474942;
     }

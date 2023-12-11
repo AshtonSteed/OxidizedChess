@@ -43,6 +43,7 @@ pub const TTABLEMASK: usize = 0x7FFFFF; //2^23 - 1 :0x7FFFFF; //2^23 - 1
 pub const RTABLEMASK: usize = 0x3FFF; //2^14 - 1
 
 pub const MAXPLY: usize = 64;
+pub const MATESCORE: i32 = -1000000;
 pub enum Color {
     WHITE,
     BLACK,
@@ -152,11 +153,11 @@ pub const SQUARE_TO_COORDINATES: [&str; 65] = [
 pub const PIECEWEIGHT: [i32; 5] = [100, 288, 345, 480, 1077];
 
 pub const PHASEWEIGHT: [i32; 6] = [0, 155, 305, 405, 1050, 0];
-pub const MIDGAME: i32 = 5255; //
-pub const ENDGAME: i32 = 435;
-pub const CONTEMPT: i32 = -100; // 4x the comtempt factor
+pub const MIDGAME: f64 = 5255.; //
+pub const ENDGAME: f64 = 435.;
+pub const CONTEMPT: i32 = 100; // 4x the comtempt factor
 pub const LMRCOUNT: usize = 4;
-pub const INTERNALREDUCTION: usize = 4; // TODO: mess with these values
+pub const INTERNALREDUCTION: usize = 3; // TODO: mess with these values
 pub const LMRLEVEL: f64 = 0.5;
 // MVVLVA [ATTACKER][TARGET]
 pub const MVV_LVA: [[i32; 12]; 12] = [
@@ -178,6 +179,14 @@ pub const CASTLING_RIGHTS: [u8; 64] = [
     15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
     15, 15, 15, 15, 15, 15, 15, 15, 13, 15, 15, 15, 12, 15, 15, 14,
 ];
+// Passed, Isolated, Doubles
+pub const PAWN_STRUCTURE_VALUES: [[i32; 3]; 2] = [[7, -15, -5], [20, -5, -10]];
+
+pub const MOBILITY_SCALE: i32 = 20;
+
+pub const BISHOP_MOBILITY: [i32; 2] = [5, 5];
+pub const QUEEN_MOBILITY: [i32; 2] = [1, 2];
+
 pub const MIDGAMETABLE: [[i32; 64]; 6] = [
     //PAWN MG
     [
