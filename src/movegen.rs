@@ -9,7 +9,7 @@ pub fn refresh(
     // should be significantly more efficient than generating and checking all naive moves
     // kingban must be initialized as enemy kings attack
     board: &mut engine::Board,
-) -> u64 {
+) {
     // sets checkmask to all 1s
     let mut checkmask = u64::MAX;
 
@@ -27,7 +27,7 @@ pub fn refresh(
     let kingsq = kingboard.trailing_zeros() as usize;
     if kingsq == 64 {
         // maybe remove this and just require a king on board TODO:
-        return 0u64;
+        panic!("No King on board!");
     }
     let pawn_attacks = piececonstants::PAWN_ATTACKS[raw_side][kingsq] & board.pieceboards[enemy]; // updates checkmask to include a single psosible pawn attack
     if pawn_attacks != 0 {
@@ -109,8 +109,7 @@ pub fn refresh(
 
     //piececonstants::KING_ATTACKS[board.pieceboards[enemy_raw + 5].trailing_zeros() as usize];
     if king_atk == 0 {
-        board.movemasks = [kingban, checkmask, rook_pin, bishop_pin];
-        return 0u64;
+        board.movemasks = [kingban, checkmask, rook_pin, bishop_pin, 0];
     } else {
         let mut knights = board.pieceboards[enemy + 1];
 
@@ -140,8 +139,13 @@ pub fn refresh(
             rooks.pop_bit(square);
             kingban |= piececonstants::get_rook_attacks(square, kingless_occupancy);
         }
-        board.movemasks = [kingban, checkmask, rook_pin, bishop_pin];
-        return king_atk & !kingban;
+        board.movemasks = [
+            kingban,
+            checkmask,
+            rook_pin,
+            bishop_pin,
+            king_atk & !kingban,
+        ];
     }
     //print_bitboard(*checkmask);
     //print_bitboard(*rook_pin);
@@ -216,29 +220,23 @@ fn pin_ep(
     // checks for horizontal pin on enpassant attacking pawn, removing EP square if necessary
 }
 
+// assumes refresh in captures
+// might convert to staged generation and staged sorting
 pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usize {
     //let mut moves: Vec<moves::Move> = Vec::new();
-    let mut moveindex = 0usize;
+    let mut moveindex = generate_captures(board, movelist);
     let raw_side = (board.side == Some(1)) as usize;
     let raw_enemy = (board.side == Some(0)) as usize;
     let side = raw_side * 6;
     //let enemy = raw_enemy * 6;
 
-    //king moves
-    let king_raw = refresh(board);
-    let mut king_captures = king_raw & board.occupancies[raw_enemy];
-    let mut king_quiet = king_raw & !king_captures;
+    // quiet king
+    let mut king_quiet = board.movemasks[4] & !board.occupancies[2];
 
     let moveable = !board.occupancies[raw_side] & board.movemasks[1];
 
     let kingsq = board.pieceboards[side + 5].trailing_zeros() as usize;
-    //king captures
-    for _i in 0..king_captures.count_ones() {
-        let square = king_captures.trailing_zeros() as usize;
-        king_captures.pop_bit(square);
-        movelist[moveindex] = moves::Move::new(kingsq as u16, square as u16, 1, 0, 0, 0);
-        moveindex += 1;
-    }
+
     //king quiet
     for _i in 0..king_quiet.count_ones() {
         let square = king_quiet.trailing_zeros() as usize;
@@ -288,14 +286,7 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let knight = knights.trailing_zeros() as usize;
         knights.pop_bit(knight);
         let attacks = piececonstants::KNIGHT_ATTACKS[knight] & moveable; //prunes night moves to those that follow the checkmask and dont self capture
-        let mut captures = attacks & board.occupancies[raw_enemy]; //knight moves that capture
-        for _k in 0..captures.count_ones() {
-            let attack = captures.trailing_zeros() as usize;
-            captures.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(knight as u16, attack as u16, 1, 0, 0, 0);
-            moveindex += 1;
-        }
         let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides night moves to those that dont capture
 
         for _j in 0..quiet.count_ones() {
@@ -319,14 +310,7 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let attacks = piececonstants::get_rook_attacks(rook, board.occupancies[2])
             & moveable
             & board.movemasks[2]; //prunes rook moves to those that follow the checkmask and dont self capture
-        let mut captures = attacks & board.occupancies[raw_enemy]; //rook moves that capture
-        for _k in 0..captures.count_ones() {
-            let attack = captures.trailing_zeros() as usize;
-            captures.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 1, 0, 0, 0);
-            moveindex += 1;
-        }
         let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides rook moves to those that dont capture
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
@@ -341,13 +325,7 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let rook = rooksqno.trailing_zeros() as usize;
         rooksqno.pop_bit(rook);
         let attacks = piececonstants::get_rook_attacks(rook, board.occupancies[2]) & moveable; //prunes rook moves to those that follow the checkmask and dont self capture
-        let mut captures = attacks & board.occupancies[raw_enemy]; //rook moves that capture
-        for _k in 0..captures.count_ones() {
-            let attack = captures.trailing_zeros() as usize;
-            captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 1, 0, 0, 0);
-            moveindex += 1;
-        }
+
         let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides rook moves to those that dont capture
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
@@ -371,13 +349,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
             & moveable
             & board.movemasks[3]; //prunes bishops moves to those that follow the checkmask and dont self capture
 
-        let mut captures = attacks & board.occupancies[raw_enemy]; //bishops moves that capture
-        for _k in 0..captures.count_ones() {
-            let attack = captures.trailing_zeros() as usize;
-            captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 1, 0, 0, 0);
-            moveindex += 1;
-        }
         let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides bishops moves to those that dont capture
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
@@ -398,16 +369,8 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
             movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 0, 0, 0, 0);
             moveindex += 1;
         }
-        let mut captures = attacks & board.occupancies[raw_enemy]; //bishop moves that capture
-        for _k in 0..captures.count_ones() {
-            let attack = captures.trailing_zeros() as usize;
-            captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 1, 0, 0, 0);
-            moveindex += 1;
-        }
     }
 
-    // pawns (white) TODO: promotions need work
     // IDEAS: Divide into a ton of pawn groups, I guess. Gonna make alot of messy, annoying code
     if raw_side == 0 {
         let pawns = board.pieceboards[0]; // white pawns
@@ -421,26 +384,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let pushrow = 0xFF000000000000u64;
         let promoterow = 0xFF00u64;
 
-        // Enpassant block
-        if board.enpassant & moveable != 0 {
-            let ensquare = board.enpassant.trailing_zeros();
-            let mut nopinenpassant = piececonstants::PAWN_ATTACKS[1][ensquare as usize] & nopind;
-
-            for _n in 0..nopinenpassant.count_ones() {
-                let pawn = nopinenpassant.trailing_zeros() as u16;
-                nopinenpassant.pop_bit(pawn as usize);
-                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
-                moveindex += 1;
-            }
-            if board.enpassant & board.movemasks[3] != 0 {
-                let pinenpassant = piececonstants::PAWN_ATTACKS[1][ensquare as usize] & pind;
-                if pinenpassant != 0 {
-                    let pawn = pinenpassant.trailing_zeros() as u16;
-                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
-                    moveindex += 1;
-                }
-            }
-        }
         // quiet normal pawn moves
         for _i in 0..nopinf.count_ones() {
             let pawn = nopinf.trailing_zeros() as u16;
@@ -505,58 +448,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
                 moveindex += 1;
             };
         }
-        //normal captures
-        for _k in 0..nopind.count_ones() {
-            let pawn = nopind.trailing_zeros() as u16;
-            nopind.pop_bit(pawn as usize);
-            let mut attacks = piececonstants::PAWN_ATTACKS[0][pawn as usize]
-                & board.occupancies[1]
-                & board.movemasks[1];
-            for _l in 0..attacks.count_ones() {
-                let attack = attacks.trailing_zeros() as u16;
-                attacks.pop_bit(attack as usize);
-                if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
-                    moveindex += 1;
-                } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
-                    moveindex += 1;
-                }
-            }
-        }
-        //pinned captures
-        for _m in 0..pind.count_ones() {
-            let pawn = pind.trailing_zeros() as u16;
-            pind.pop_bit(pawn as usize);
-            let attacks = piececonstants::PAWN_ATTACKS[0][pawn as usize]
-                & board.occupancies[1]
-                & board.movemasks[1]
-                & board.movemasks[3];
-
-            // pretty sure theres no way for multiple pin attacks, TODO: check this
-            if attacks != 0 {
-                let attack = attacks.trailing_zeros() as u16;
-                if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
-                    moveindex += 1;
-                } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
-                    moveindex += 1;
-                }
-            }
-        }
     } else {
         //black pawns
         let pawns = board.pieceboards[6];
@@ -570,27 +461,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let pushrow = 0xFF00u64;
         let promoterow = 0xFF000000000000u64;
 
-        // Enpassant block
-        if board.enpassant & moveable != 0 {
-            let ensquare = board.enpassant.trailing_zeros();
-            let mut nopinenpassant = piececonstants::PAWN_ATTACKS[0][ensquare as usize] & nopind;
-
-            for _n in 0..nopinenpassant.count_ones() {
-                let pawn = nopinenpassant.trailing_zeros() as u16;
-                nopinenpassant.pop_bit(pawn as usize);
-                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
-                moveindex += 1;
-            }
-            if board.enpassant & board.movemasks[3] != 0 {
-                let pinenpassant = piececonstants::PAWN_ATTACKS[0][ensquare as usize] & pind;
-                if pinenpassant != 0 {
-                    let pawn = pinenpassant.trailing_zeros() as u16;
-
-                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
-                    moveindex += 1;
-                }
-            }
-        }
         // quiet normal pawn moves
         for _i in 0..nopinf.count_ones() {
             let pawn = nopinf.trailing_zeros() as u16;
@@ -653,58 +523,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
                 moveindex += 1;
             };
         }
-        //normal captures
-        for _k in 0..nopind.count_ones() {
-            let pawn = nopind.trailing_zeros() as u16;
-            nopind.pop_bit(pawn as usize);
-            let mut attacks = piececonstants::PAWN_ATTACKS[1][pawn as usize]
-                & board.occupancies[0]
-                & board.movemasks[1];
-            for _l in 0..attacks.count_ones() {
-                let attack = attacks.trailing_zeros() as u16;
-                attacks.pop_bit(attack as usize);
-                if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
-                    moveindex += 1;
-                } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
-                    moveindex += 1;
-                }
-            }
-        }
-        //pinned captures
-        for _m in 0..pind.count_ones() {
-            let pawn = pind.trailing_zeros() as u16;
-            pind.pop_bit(pawn as usize);
-            let attacks = piececonstants::PAWN_ATTACKS[1][pawn as usize]
-                & board.occupancies[0]
-                & board.movemasks[1]
-                & board.movemasks[3];
-
-            // pretty sure theres no way for multiple pin attacks, TODO: check this
-            if attacks != 0 {
-                let attack = attacks.trailing_zeros() as u16;
-                if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
-                    moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
-                    moveindex += 1;
-                } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
-                    moveindex += 1;
-                }
-            }
-        }
     }
 
     moveindex
@@ -720,8 +538,8 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut Vec<u16>) -> 
     //let enemy = raw_enemy * 6;
 
     //king moves
-    let king_raw = refresh(board);
-    let mut king_captures = king_raw & board.occupancies[raw_enemy];
+    refresh(board);
+    let mut king_captures = board.movemasks[4] & board.occupancies[raw_enemy];
 
     let moveable = !board.occupancies[raw_side] & board.movemasks[1];
 
@@ -834,7 +652,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut Vec<u16>) -> 
         let promoterow = 0xFF00u64;
 
         // Enpassant block
-        if board.enpassant & moveable != 0 {
+        if board.enpassant & moveable != 0 || (moveable != 0 && moveable == board.enpassant << 8) {
             let ensquare = board.enpassant.trailing_zeros();
             let mut nopinenpassant = piececonstants::PAWN_ATTACKS[1][ensquare as usize] & nopind;
 
@@ -918,7 +736,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut Vec<u16>) -> 
         let promoterow = 0xFF000000000000u64;
 
         // Enpassant block
-        if board.enpassant & moveable != 0 {
+        if board.enpassant & moveable != 0 || (moveable != 0 && moveable == board.enpassant >> 8) {
             let ensquare = board.enpassant.trailing_zeros();
             let mut nopinenpassant = piececonstants::PAWN_ATTACKS[0][ensquare as usize] & nopind;
 

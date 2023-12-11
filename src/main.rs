@@ -7,8 +7,11 @@ extern crate lazy_static;
 mod engine;
 
 use engine::{BitBoard, Board};
+use movegen::generate_moves;
 use rand::Rng;
 use uci::uci_loop;
+
+use crate::moves::MoveStuff;
 
 mod movegen;
 mod moves;
@@ -38,10 +41,18 @@ fn main() {
     // futility pruning could be useful
 
     uci_loop();
-    /*let mut board = Board::default();
-    board.parse_fen("8/8/8/3p4/2N5/6pP/6P1/8 w - - 0 1".to_string());
-    board.evaluate();
-    board.print_board();*/
+    /*
+    let mut board = Board::default();
+    let mut moves = vec![0; 256];
+    board.parse_fen("8/2k5/8/3pP3/2K5/8/8/8 w - d6 0 1".to_string());
+    let i = generate_moves(&mut board, &mut moves);
+    for j in 0..i {
+        println!("{}", moves[j].to_uci());
+    }
+    board.print_board();
+    board.movemasks[0].print_bitboard();
+    board.movemasks[1].print_bitboard();*/
+    //board.movemasks[2].print_bitboard();
 }
 
 /*  let king_attack = movegen::refresh(&mut board);

@@ -4,7 +4,7 @@ use crate::{movegen, moves, piececonstants};
 pub struct Board {
     pub pieceboards: [u64; 12], // [P, N, B, R, Q, K, p, n, b, r, q, k]
     pub occupancies: [u64; 3],  // [white occupancies, black occupancies, total occupancies]
-    pub movemasks: [u64; 4],    // [attacks, checkmask, rookpin, bishoppin]
+    pub movemasks: [u64; 5],    // [attacks, checkmask, rookpin, bishoppin, kingraw]
     pub side: Option<u8>, // side to move, None for invalid, 0 for white, 1 for black (Color enum)
     pub enpassant: u64,   // enpassant possible square (as a bitboard)
     pub castle: u8, // castling rights, 4 bits, 0001 1  white king kingside, 0010 2 white king queenside, 0100 4 black king king side, 1000 8 black king queen side
@@ -15,7 +15,7 @@ impl Default for Board {
         Board {
             pieceboards: [0; 12], // all boards to 0s
             occupancies: [0; 3],  // all occupancies to 0s
-            movemasks: [0; 4],    // all masks to 0s
+            movemasks: [0; 5],    // all masks to 0s
             side: None,           // side no worky
             enpassant: 0,         // enpassant possible square, no_sq
             castle: 0,

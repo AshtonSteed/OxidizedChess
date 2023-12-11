@@ -57,6 +57,7 @@ pub fn parse_position(
             make_move(board, &m);
 
             if !temp.is_repeat(&board) {
+                //println!("Move {} is not repeatable", m.to_uci());
                 *halfcount = 0;
                 history.clear();
             }

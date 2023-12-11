@@ -48,10 +48,10 @@ impl Transpositiontable {
         let index = key & (piececonstants::TTABLEMASK as u64);
         let exactscore = score & 3 == 0;
 
-        let mut entry = self.0[index as usize];
+        let entry = &mut self.0[index as usize];
         //current implementation is just stolen from stockfish on god
 
-        if key != entry.0 || depth >= entry.2 {
+        if key != entry.0 || m != 0 {
             entry.1 = m
         }
         if exactscore || key != entry.0 || depth >= entry.2 {
@@ -62,8 +62,16 @@ impl Transpositiontable {
             // replaces only if depth is greater than current depth. This helps perserve PV, ill see if theres a better way though
             //println!("collision: {}", entry.0 != key);
             // m as entry.1?
-            self.0[index as usize] = (key, entry.1, depth, score);
+            entry.0 = key;
+            entry.2 = depth;
+            entry.3 = score;
         }
+    }
+
+    fn clear_move(&mut self, key: u64) {
+        let index = key & (piececonstants::TTABLEMASK as u64);
+        let entry = &mut self.0[index as usize];
+        entry.1 = 0;
     }
 
     pub fn crude_full(&self) -> u32 {
@@ -277,7 +285,7 @@ pub fn negamax(
                     return piececonstants::CONTEMPT;
                 }
             }
-            let mut repcount = 0;
+
             // set starting value based on ply and side to move?
             let start = 1 - (ply & 1);
             for j in (start..plycount).step_by(2) {
@@ -285,10 +293,8 @@ pub fn negamax(
                     //positionstack[ply].print_board();
                     //println!("{} {}", key, history[j]);
                     //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-                    repcount += 1;
-                    if repcount == 2 {
-                        return piececonstants::CONTEMPT;
-                    }
+
+                    return piececonstants::CONTEMPT;
                 }
             }
         }
@@ -779,7 +785,7 @@ pub fn zerowindow(
                     return piececonstants::CONTEMPT;
                 }
             }
-            let mut repcount = 0;
+
             // set starting value based on ply and side to move?
             //println!("{}", ply);
             let start = 2 - (ply & 1);
@@ -788,10 +794,7 @@ pub fn zerowindow(
                     //positionstack[ply].print_board();
                     //println!("{}", depth);
                     //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-                    repcount += 1;
-                    if repcount == 2 {
-                        return piececonstants::CONTEMPT;
-                    }
+
                     return piececonstants::CONTEMPT;
                 }
             }
