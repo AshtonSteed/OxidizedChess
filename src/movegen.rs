@@ -222,9 +222,10 @@ fn pin_ep(
 
 // assumes refresh in captures
 // might convert to staged generation and staged sorting
-pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usize {
+pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize) -> usize {
     //let mut moves: Vec<moves::Move> = Vec::new();
-    let mut moveindex = generate_captures(board, movelist);
+    //let mut moveindex = generate_captures(board, movelist);
+    let mut moveindex = i;
     let raw_side = (board.side == Some(1)) as usize;
     let raw_enemy = (board.side == Some(0)) as usize;
     let side = raw_side * 6;
@@ -378,8 +379,6 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
         let pawnsforward = pawns & !board.movemasks[3]; // can walk forward
         let mut pinf = pawnsforward & board.movemasks[2]; // forward pawns that are pinned
         let mut nopinf = pawnsforward & !board.movemasks[2]; //unpinned forward pawns
-        let mut pind = pawnsdiagonal & board.movemasks[3]; // diagonal pawns that are pinned
-        let mut nopind = pawnsdiagonal & !board.movemasks[3]; // unpined diagonal pawns
 
         let pushrow = 0xFF000000000000u64;
         let promoterow = 0xFF00u64;
@@ -529,7 +528,7 @@ pub fn generate_moves(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usi
 }
 
 // only generates capture moves for quiescent searches
-pub fn generate_captures(board: &mut engine::Board, movelist: &mut Vec<u16>) -> usize {
+pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usize {
     //let mut moves: Vec<moves::Move> = Vec::new();
     let mut moveindex = 0usize;
     let raw_side = (board.side == Some(1)) as usize;
@@ -811,4 +810,9 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut Vec<u16>) -> 
     }
 
     moveindex
+}
+
+pub fn generate_moves(board: &mut engine::Board, movelist: &mut [u16]) -> usize {
+    let c = generate_captures(board, movelist);
+    return generate_quiets(board, movelist, c);
 }

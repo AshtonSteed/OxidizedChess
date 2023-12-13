@@ -14,7 +14,7 @@
 // 1100 - 1111 same as promotions but captures
 
 //pub struct Move(u16);
-use crate::{engine, piececonstants};
+use crate::{engine, movegen, piececonstants};
 
 pub use u16 as Move;
 
@@ -235,48 +235,68 @@ pub fn null_move(board: &mut engine::Board) {
 // returns -score of move, lower the better for sorting purposes
 // we need to make this way better for PVS
 #[inline(always)]
-pub fn score_move(
-    m: &u16,
+pub fn score_moves(
+    moves: &mut [u16],
+    scores: &mut [i32],
+    n: &mut usize,
     board: &engine::Board,
-    tmove: Option<u16>,
     killers: &Vec<u16>,
     history: &Vec<Vec<usize>>,
-    maxh: usize,
-) -> i32 {
-    // PV / ttable move
-    if Some(*m) == tmove {
-        //println!("PV");
-        return 1000;
+    tmove: Option<Move>,
+) {
+    let mut i = 0;
+    let temp = n.clone();
+    while i < *n {
+        let mut m = moves[i];
+        assert!(m != 0);
+        // Remove already searched Tmove from consideration
+        if m == tmove.unwrap_or(0) {
+            // reduce length by one
+            *n -= 1;
+
+            if i >= *n {
+                break;
+            }
+            // Move tmove to end of stack
+            moves.swap(i, *n);
+
+            m = moves[i];
+            //println!("{}", m.to_uci());
+        };
+        let initsq = m.get_initial() as usize;
+        let finalsq = m.get_final() as usize;
+        let extra = m.get_extra();
+
+        scores[i] = match extra & 4 {
+            0 => {
+                // Quiet moves
+                if m == killers[0] || m == killers[1] {
+                    10000000
+                } else {
+                    if extra & 8 != 0 {
+                        piececonstants::PIECEWEIGHT[extra as usize & 3 + 1] * 10
+                    } else if extra & 2 != 0 {
+                        1000
+                    } else {
+                        let hval = history[initsq][finalsq];
+
+                        hval as i32
+                    }
+                }
+            }
+            _ => {
+                // Captures
+
+                match board.get_target(finalsq) {
+                    Some(target) => piececonstants::MVV_LVA[board.get_attacker(initsq)][target],
+                    // enpassant, pawn takes pawn but a bit more interesting
+                    None => 120,
+                }
+            }
+        };
+        i += 1;
     }
 
-    let initsq = m.get_initial() as usize;
-    let attacker = board.get_attacker(initsq);
-    let finalsq = m.get_final() as usize;
-    let extra = m.get_extra();
-
-    // captures
-    if extra & 4 != 0 {
-        match board.get_target(finalsq) {
-            Some(target) => return piececonstants::MVV_LVA[attacker][target],
-            // enpassant, pawn takes pawn but a bit more interesting
-            None => return 120,
-        }
-    } else {
-        if *m == killers[0] || *m == killers[1] {
-            return 100;
-        }
-
-        //promotion and then castling
-        if extra & 8 != 0 {
-            return piececonstants::PIECEWEIGHT[extra as usize & 3 + 1] / 10;
-        } else if extra & 2 != 0 {
-            return 95;
-        }
-
-        let hval = 1 + 90 * history[initsq][finalsq] / maxh;
-
-        return hval as i32;
-    }
     //println!("Move: {} Score: {}", m.to_uci(), score); 3712990
 }
 #[inline]
@@ -288,7 +308,7 @@ fn shift_down(moves: &mut [u16], scores: &mut [i32], start: usize, end: usize) {
         if child > end {
             break;
         }
-        if child + 1 <= end && &scores[child] < &scores[child + 1] {
+        if child + 1 <= end && &scores[child] <= &scores[child + 1] {
             child += 1;
         }
         if &scores[root] < &scores[child] {
@@ -301,18 +321,21 @@ fn shift_down(moves: &mut [u16], scores: &mut [i32], start: usize, end: usize) {
     }
 }
 #[inline]
-pub fn build_min_heap(moves: &mut [u16], scores: &mut [i32], size: usize) {
+pub fn build_max_heap(moves: &mut [u16], scores: &mut [i32], size: usize) {
     // Build a min heap.
     for i in (0..size / 2).rev() {
         shift_down(moves, scores, i, size - 1);
     }
 }
 
+// Swap best move to end of heap and find next best move
 #[inline]
 pub fn next_move(moves: &mut [u16], scores: &mut [i32], size: usize, i: usize) {
-    let end = size - i - 1;
+    let end: usize = size - i - 1;
+    //println!("{} {} {}", size, i, end);
 
-    // Extract elements one by one
+    assert!(end != 0);
+    // Only one move left, already sorted
     if end == 0 {
         return;
     }
@@ -332,4 +355,99 @@ pub fn next_move(moves: &mut [u16], scores: &mut [i32], size: usize, i: usize) {
     }
     scores.swap(k, end);
     moves.swap(k, end);*/
+}
+
+// iterate to next move based on current stage and give next move
+/* ORDER: Tmove -> Captures -> Quiets
+   Puts next move at moves[0] and then returns it, or returns None if all moves are used
+*/
+pub fn pick_move(
+    position: &mut engine::Board,
+    moves: &mut [u16],
+    scores: &mut [i32],
+    movecount: &mut usize,
+    totalmoves: &mut usize,
+    i: &mut usize,
+    movephase: &mut usize,
+    killers: &Vec<u16>,
+    history: &Vec<Vec<usize>>,
+    quiets: bool,
+    tmove: Option<Move>,
+) -> Move {
+    //println!("{}, {}, {}", i, movecount, movephase);
+    //println!("{}", movephase);
+    //println!("{:?}", tmove);
+    loop {
+        //println!("{} {:?}", movecount, tmove);
+        match movephase {
+            0 => {
+                // Ttable move at position 0
+                *movephase += 1;
+                *totalmoves += 1;
+                break;
+            }
+            1 => {
+                //Init captures
+                *movecount = movegen::generate_captures(position, moves);
+                //println!("Gen : {:?}", moves.get(..*movecount));
+
+                score_moves(moves, scores, movecount, position, killers, history, tmove);
+                //println!("Score : {:?}", moves.get(..*movecount));
+                *totalmoves += *movecount;
+                // check if no captures
+                if *movecount == 0 {
+                    // skip to quiets
+                    *movephase += 2;
+                    continue;
+                }
+                //println!("Moves: {}", movecount);
+                //println!("Captures : {:?}", scores.get(0..*movecount));
+                build_max_heap(moves, scores, *movecount);
+                //put first move at position 0
+
+                *movephase += 1;
+                *i = 0;
+                break;
+            }
+            2 | 4 => {
+                //println!("Moves: {:?}", moves.get(0..*movecount));
+                //println!("Scores Before: {:?}", scores.get(0..*movecount));
+                if *i >= *movecount - 1 {
+                    *movephase += 1;
+                    continue;
+                }
+                // Pick next move
+                next_move(moves, scores, *movecount, *i);
+                //println!("Next : {:?}", scores.get(..*movecount));
+                *i += 1;
+
+                break;
+            }
+            3 => {
+                // Check if quiets are being generated
+                if !quiets {
+                    return 0;
+                }
+                // Generate quiet moves
+                *movecount = movegen::generate_quiets(position, moves, 0);
+
+                score_moves(moves, scores, movecount, position, killers, history, tmove);
+                //println!("{}", movecount);
+                *totalmoves += *movecount;
+                if *movecount == 0 {
+                    *movephase += 2;
+                    continue;
+                }
+                build_max_heap(moves, scores, *movecount);
+
+                //println!("Quiets : {:?}", scores.get(0..*movecount));
+                *movephase += 1;
+                *i = 0;
+                break;
+            }
+            _ => return 0, // All moves used, nothing is left
+        };
+    }
+    //println!("{} {}", i, movecount);
+    moves[0]
 }
