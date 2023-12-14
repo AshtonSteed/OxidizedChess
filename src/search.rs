@@ -1,14 +1,11 @@
 use crate::{
     engine::Board,
-    movegen::{generate_captures, generate_moves},
+    movegen,
     moves::{self, make_move, null_move, MoveStuff},
     piececonstants,
     uci::communicate,
 };
-use std::{
-    io::repeat,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 // TRANSPOSITION TABLE : [full hash, best move, depth, value]
 // value uses integrated bounds, needs some fancy stuff in negamax but should work good
@@ -162,7 +159,7 @@ pub fn search_position(
             //println!("{:?}   {:?}", m2, score);
             match m2 {
                 Some(j) => {
-                    let _ = generate_moves(&mut boardcopy, &mut movestack[i]);
+                    let _ = movegen::generate_moves(&mut boardcopy, &mut movestack[i]);
                     if movestack[i].contains(&j) && j != &0 {
                         make_move(&mut boardcopy, j);
                         movestring += &j.to_uci();
