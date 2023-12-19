@@ -32,6 +32,7 @@ pub trait MoveStuff {
     fn get_final(&self) -> u16;
     fn get_extra(&self) -> u16;
     fn to_uci(&self) -> String;
+    fn is_valid(&self) -> bool;
 }
 
 impl MoveStuff for Move {
@@ -97,6 +98,11 @@ impl MoveStuff for Move {
         } else {
             return (initial_square.to_owned() + final_square).to_string();
         }
+    }
+
+    fn is_valid(&self) -> bool {
+        // if either all bits are 0 or all bits are 1,  return move as invalid
+        return self.wrapping_mul(self ^ u16::MAX) != 0;
     }
 }
 

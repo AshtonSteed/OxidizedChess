@@ -486,3 +486,21 @@ impl BitBoard for u64 {
         *self &= !(1u64 << square);
     }
 }
+
+pub fn is_draw(positionstack: &[Board], ply: usize, halfcount: usize) -> bool {
+    // 50 move rule
+    if halfcount >= 50 {
+        true;
+    }
+
+    // Check for single repitition in search
+    let depth = ply.min(halfcount);
+    let now = positionstack[ply].key;
+    for i in ply - depth..ply {
+        if positionstack[i].key == now {
+            return true;
+        }
+    }
+    // else, no repitiion
+    return false;
+}

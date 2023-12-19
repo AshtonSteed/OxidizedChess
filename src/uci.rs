@@ -25,11 +25,12 @@ pub fn parse_move(input: String, board: &mut Board) -> u16 {
 pub fn parse_position(
     input: String,
     board: &mut Board,
-    history: &mut Vec<u64>,
+
     halfcount: &mut usize,
+    ttable: &mut Transpositiontable,
 ) {
     *halfcount = 0;
-    history.clear();
+
     let split = input.split(' ');
     let segments: Vec<&str> = split.collect();
     let mut movei = 2;
@@ -49,21 +50,23 @@ pub fn parse_position(
 
     board.parse_fen(fen);
     *halfcount += 1;
-    history.insert(0, board.key);
+
     if segments.len() > movei {
+        ttable.set_value(board.key, u16::MAX, usize::MAX, piececonstants::CONTEMPT);
         for i in &segments[movei + 1..] {
             let m = parse_move(i.to_string(), board);
             let temp = board.clone();
             make_move(board, &m);
+            if i != &segments[segments.len() - 1] {
+                ttable.set_value(board.key, u16::MAX, usize::MAX, piececonstants::CONTEMPT);
+            }
 
             if !temp.is_repeat(&board) {
                 //println!("Move {} is not repeatable", m.to_uci());
                 *halfcount = 0;
-                history.clear();
             }
 
             *halfcount += 1;
-            history.insert(0, board.key);
         }
     }
 }
@@ -75,7 +78,7 @@ pub fn parse_go(
     input: String,
     board: &mut Board,
     ttable: &mut Transpositiontable,
-    history: &mut Vec<u64>,
+
     halfcount: &mut usize,
 ) {
     let split = input.split(' ');
@@ -101,7 +104,7 @@ pub fn parse_go(
         _ => (10, Duration::MAX), // placeholder for other moves, default to depth of 10
     };
 
-    let m = search_position(board, depth, timelimit, ttable, history, halfcount.clone());
+    let m = search_position(board, depth, timelimit, ttable, halfcount.clone());
     println!("bestmove {}", m.to_uci());
     let mut temp = board.clone();
     make_move(&mut temp, &m);
@@ -123,7 +126,7 @@ pub fn uci_loop() {
 
     let mut ttable = Transpositiontable::new(); // transpotion table
                                                 //let mut rtable = Repititiontable::new(); // repitiion table
-    let mut history: Vec<u64> = vec![];
+
     let mut halfclock: usize = 0;
     while let Some(line) = lines.next() {
         let input = line.unwrap().to_string();
@@ -142,17 +145,17 @@ pub fn uci_loop() {
                 };
                 ttable = Transpositiontable::new();
                 //rtable = Repititiontable::new();
-                history = vec![];
+
                 halfclock = 0;
                 // TODO: add anything else that needs reset in new game
             }
             "position" => {
-                parse_position(input, &mut board, &mut history, &mut halfclock);
+                parse_position(input, &mut board, &mut halfclock, &mut ttable);
                 //history.insert(0, board.key.clone());
                 //cahalfclock += 1;
             }
             "go" => {
-                parse_go(input, &mut board, &mut ttable, &mut history, &mut halfclock);
+                parse_go(input, &mut board, &mut ttable, &mut halfclock);
                 // analyze board position
             }
             "quit" => break,

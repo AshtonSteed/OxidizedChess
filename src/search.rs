@@ -1,5 +1,5 @@
 use crate::{
-    engine::Board,
+    engine::{is_draw, Board},
     movegen,
     moves::{self, make_move, null_move, MoveStuff},
     piececonstants,
@@ -34,19 +34,23 @@ impl Transpositiontable {
     #[inline(always)]
     pub fn read_move(&self, key: u64) -> Option<u16> {
         let index = (key & (piececonstants::TTABLEMASK as u64)) as usize;
-        if self.0[index].0 == key && self.0[index].1 != 0 {
+        if self.0[index].0 == key && self.0[index].1.is_valid() {
             return Some(self.0[index].1);
         } else {
             return None;
         }
     }
     #[inline(always)]
-    fn set_value(&mut self, key: u64, m: u16, depth: usize, score: i32) {
+    pub fn set_value(&mut self, key: u64, m: u16, depth: usize, score: i32) {
         let index = key & (piececonstants::TTABLEMASK as u64);
         let exactscore = score & 3 == 0;
 
         let entry = &mut self.0[index as usize];
         //current implementation is just stolen from stockfish on god
+        if entry.1 == u16::MAX {
+            // max move flags an irreplacable entry, used for repititions
+            return;
+        }
 
         if key != entry.0 || m != 0 {
             entry.1 = m
@@ -101,7 +105,7 @@ pub fn search_position(
     maxdepth: usize,
     timelimit: Duration,
     ttable: &mut Transpositiontable,
-    history: &mut Vec<u64>,
+
     halfcount: usize,
 ) -> u16 {
     let mut positionstack = vec![board.clone(); piececonstants::MAXPLY];
@@ -131,7 +135,6 @@ pub fn search_position(
             -2147483600,
             2147483600,
             ttable,
-            history,
             halfcount,
             &mut killertable,
             &mut historytable,
@@ -239,7 +242,7 @@ pub fn negamax(
     alpha: i32,
     beta: i32,
     ttable: &mut Transpositiontable,
-    history: &mut Vec<u64>,
+
     halfcount: usize,
     killertable: &mut Vec<Vec<u16>>,
     historytable: &mut Vec<Vec<Vec<usize>>>,
@@ -260,65 +263,11 @@ pub fn negamax(
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
     } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
+        && ply != 0
         && pruneflags.0 == 0
+        && is_draw(positionstack, ply, halfcount)
     {
-        if halfcount <= ply || history.len() == 0 {
-            for i in (2..halfcount).step_by(2) {
-                if key == positionstack[ply - i].key {
-                    //positionstack[ply].print_board();
-                    //println!("{}", depth);
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-
-                    return piececonstants::CONTEMPT;
-                }
-            }
-        } else {
-            let plycount = halfcount - ply;
-
-            for i in (2..ply).step_by(2) {
-                if key == positionstack[ply - i].key {
-                    //positionstack[ply].print_board();
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-                }
-            }
-
-            // set starting value based on ply and side to move?
-            let start = 1 - (ply & 1);
-            for j in (start..plycount).step_by(2) {
-                if key == history[j] {
-                    //positionstack[ply].print_board();
-                    //println!("{} {}", key, history[j]);
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-                }
-            }
-        }
-        // i really need to figure this out better
-        // handles repitions, considers single repitions as zeros
-        /*
-
-        for i in (2..ply).step_by(2) {
-            println!("ply: {}, i: {}, Ply - i{}", ply, i, ply - i);
-            if key == positionstack[ply - i].key {
-                positionstack[ply].print_board();
-                ttable.set_value(key, 0, depth, piececonstants::CONTEMPT);
-                return piececonstants::CONTEMPT;
-            } else {
-                continue;
-            }
-        } */
-
-        //return 0;
+        return piececonstants::CONTEMPT;
     }
     match ttable.read_value(key, depth) {
         Some(score) => return score,
@@ -334,7 +283,6 @@ pub fn negamax(
             alpha,
             beta,
             ttable,
-            history,
             killertable,
             historytable,
             stopped,
@@ -374,7 +322,6 @@ pub fn negamax(
             ply + 1,
             -alpha,
             ttable,
-            history,
             halfcount + 1,
             killertable,
             historytable,
@@ -453,11 +400,6 @@ pub fn negamax(
         }
 
         if m == 0 {
-            if totalmoves == 0 {
-                println!("Nothin");
-                positionstack[ply].print_board();
-            }
-            //println!("Totalmoves: {}, Moves tried: {}", totalmoves, j);
             break;
         }
         if j == 0 {
@@ -497,7 +439,6 @@ pub fn negamax(
                 -beta,
                 -alpha2,
                 ttable,
-                history,
                 halfcount2,
                 killertable,
                 historytable,
@@ -530,7 +471,6 @@ pub fn negamax(
                     ply + 1,
                     -alpha2,
                     ttable,
-                    history,
                     halfcount2,
                     killertable,
                     historytable,
@@ -552,7 +492,6 @@ pub fn negamax(
                     ply + 1,
                     -alpha2,
                     ttable,
-                    history,
                     halfcount2,
                     killertable,
                     historytable,
@@ -578,7 +517,6 @@ pub fn negamax(
                         -beta,
                         -alpha2,
                         ttable,
-                        history,
                         halfcount2,
                         killertable,
                         historytable,
@@ -659,7 +597,6 @@ pub fn quiescent(
     alpha: i32,
     beta: i32,
     ttable: &Transpositiontable,
-    history: &mut Vec<u64>,
 
     killertable: &mut Vec<Vec<u16>>,
     historytable: &mut Vec<Vec<Vec<usize>>>,
@@ -750,7 +687,6 @@ pub fn quiescent(
             -beta,
             -alpha2,
             ttable,
-            history,
             killertable,
             historytable,
             stopped,
@@ -783,7 +719,7 @@ pub fn zerowindow(
     ply: usize,
     beta: i32,
     ttable: &mut Transpositiontable,
-    history: &mut Vec<u64>,
+
     halfcount: usize,
     killertable: &mut Vec<Vec<u16>>,
     historytable: &mut Vec<Vec<Vec<usize>>>,
@@ -805,46 +741,9 @@ pub fn zerowindow(
         return 0;
     } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
         && pruneflags.0 == 0
+        && is_draw(positionstack, ply, halfcount)
     {
-        if halfcount <= ply || history.len() == 0 {
-            for i in (2..halfcount).step_by(2) {
-                if key == positionstack[ply - i].key {
-                    //positionstack[ply].print_board();
-                    //println!("{}", depth + i);
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-                }
-            }
-        } else {
-            let plycount = halfcount - ply;
-            for i in (2..ply).step_by(2) {
-                if key == positionstack[ply - i].key {
-                    //positionstack[ply].print_board();
-                    //println!("{}", depth);
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-                }
-            }
-
-            // set starting value based on ply and side to move?
-            //println!("{}", ply);
-            let start = 2 - (ply & 1);
-            for j in (start..plycount).step_by(2) {
-                if key == history[j] {
-                    //positionstack[ply].print_board();
-                    //println!("{}", depth);
-                    //ttable.set_value(key, 0, 100, piececonstants::CONTEMPT);
-
-                    if (piececonstants::CONTEMPT >= beta) {
-                        return piececonstants::CONTEMPT;
-                    }
-                }
-            }
-        }
+        return piececonstants::CONTEMPT;
     }
     match ttable.read_value(key, depth) {
         Some(score) => return score,
@@ -862,7 +761,6 @@ pub fn zerowindow(
             beta - 4,
             beta,
             ttable,
-            history,
             killertable,
             historytable,
             stopped,
@@ -898,7 +796,6 @@ pub fn zerowindow(
             ply + 1,
             4 - beta,
             ttable,
-            history,
             halfcount,
             killertable,
             historytable,
@@ -1003,7 +900,6 @@ pub fn zerowindow(
                 ply + 1,
                 4 - beta,
                 ttable,
-                history,
                 halfcount2,
                 killertable,
                 historytable,
@@ -1023,7 +919,6 @@ pub fn zerowindow(
                     ply + 1,
                     4 - beta,
                     ttable,
-                    history,
                     halfcount2,
                     killertable,
                     historytable,
@@ -1043,7 +938,6 @@ pub fn zerowindow(
                 ply + 1,
                 4 - beta,
                 ttable,
-                history,
                 halfcount2,
                 killertable,
                 historytable,
