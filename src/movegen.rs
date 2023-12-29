@@ -243,7 +243,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         let square = king_quiet.trailing_zeros() as usize;
         king_quiet.pop_bit(square);
 
-        movelist[moveindex] = moves::Move::new(kingsq as u16, square as u16, 0, 0, 0, 0);
+        movelist[moveindex] = moves::Move::new(kingsq as u16, square as u16, 0);
         moveindex += 1;
     }
 
@@ -267,7 +267,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         && m2 & board.occupancies[2] == 0
     //checks for obsructions
     {
-        movelist[moveindex] = moves::Move::new(kingsq as u16, kingsq as u16 + 2, 0, 0, 1, 0);
+        movelist[moveindex] = moves::Move::new(kingsq as u16, kingsq as u16 + 2, 2);
         moveindex += 1;
     }
     //queenside
@@ -276,7 +276,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         && m4 & board.occupancies[2] == 0
     //checks for obsructions
     {
-        movelist[moveindex] = moves::Move::new(kingsq as u16, kingsq as u16 - 2, 0, 0, 1, 1);
+        movelist[moveindex] = moves::Move::new(kingsq as u16, kingsq as u16 - 2, 3);
         moveindex += 1;
     }
 
@@ -294,7 +294,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
             let attack = quiet.trailing_zeros() as usize;
             quiet.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(knight as u16, attack as u16, 0, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(knight as u16, attack as u16, 0);
             moveindex += 1;
         }
     }
@@ -317,7 +317,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
             let attack = quiet.trailing_zeros() as usize;
             quiet.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 0, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 0);
             moveindex += 1;
         }
     }
@@ -331,7 +331,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
             quiet.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 0, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 0);
             moveindex += 1;
         }
     }
@@ -354,7 +354,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
             quiet.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 0, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 0);
             moveindex += 1;
         }
     }
@@ -367,7 +367,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
         for _j in 0..quiet.count_ones() {
             let attack = quiet.trailing_zeros() as usize;
             quiet.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 0, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 0);
             moveindex += 1;
         }
     }
@@ -391,16 +391,16 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
             let attackb = pawnb >> 8;
             if attackb & board.occupancies[2] == 0 && attackb & board.movemasks[1] != 0 {
                 if pawnb & promoterow != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 8);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 9);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 10);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 11);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0);
                     moveindex += 1;
                 }
             }
@@ -409,7 +409,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && ((attackb >> 8) | attackb) & board.occupancies[2] == 0
                 && (attackb >> 8) & board.movemasks[1] != 0
             {
-                movelist[moveindex] = moves::Move::new(pawn, pawn - 16, 0, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, pawn - 16, 1);
                 moveindex += 1;
             };
         }
@@ -424,16 +424,16 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && attackb & board.movemasks[2] != 0
             {
                 if pawnb & promoterow != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 8);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 9);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 10);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 11);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn - 8, 0);
                     moveindex += 1;
                 }
             }
@@ -443,7 +443,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && (attackb >> 8) & board.movemasks[1] != 0
                 && (attackb >> 8) & board.movemasks[2] != 0
             {
-                movelist[moveindex] = moves::Move::new(pawn, pawn - 16, 0, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, pawn - 16, 1);
                 moveindex += 1;
             };
         }
@@ -468,16 +468,16 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
             let attackb = pawnb << 8;
             if attackb & board.occupancies[2] == 0 && attackb & board.movemasks[1] != 0 {
                 if pawnb & promoterow != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 8);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 9);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 10);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 11);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0);
                     moveindex += 1;
                 }
             }
@@ -486,7 +486,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && ((attackb << 8) | attackb) & board.occupancies[2] == 0
                 && (attackb << 8) & board.movemasks[1] != 0
             {
-                movelist[moveindex] = moves::Move::new(pawn, pawn + 16, 0, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, pawn + 16, 1);
                 moveindex += 1;
             };
         }
@@ -500,16 +500,16 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && attackb & board.movemasks[1] & board.movemasks[2] != 0
             {
                 if pawnb & promoterow != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 8);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 9);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 10);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 11);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, pawn + 8, 0);
                     moveindex += 1;
                 }
             }
@@ -518,7 +518,7 @@ pub fn generate_quiets(board: &mut engine::Board, movelist: &mut [u16], i: usize
                 && ((attackb << 8) | attackb) & board.occupancies[2] == 0
                 && (attackb << 8) & board.movemasks[1] & board.movemasks[2] != 0
             {
-                movelist[moveindex] = moves::Move::new(pawn, pawn + 16, 0, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, pawn + 16, 1);
                 moveindex += 1;
             };
         }
@@ -547,7 +547,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
     for _i in 0..king_captures.count_ones() {
         let square = king_captures.trailing_zeros() as u16;
         king_captures.pop_bit(square as usize);
-        movelist[moveindex] = moves::Move::new(kingsq, square, 1, 0, 0, 0);
+        movelist[moveindex] = moves::Move::new(kingsq, square, 4);
         moveindex += 1;
     }
 
@@ -563,7 +563,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             let attack = captures.trailing_zeros() as usize;
             captures.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(knight as u16, attack as u16, 1, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(knight as u16, attack as u16, 4);
             moveindex += 1;
         }
     }
@@ -585,7 +585,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             let attack = captures.trailing_zeros() as usize;
             captures.pop_bit(attack);
 
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 1, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 4);
             moveindex += 1;
         }
     }
@@ -598,7 +598,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
         for _k in 0..captures.count_ones() {
             let attack = captures.trailing_zeros() as usize;
             captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 1, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(rook as u16, attack as u16, 4);
             moveindex += 1;
         }
     }
@@ -621,7 +621,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
         for _k in 0..captures.count_ones() {
             let attack = captures.trailing_zeros() as usize;
             captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 1, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 4);
             moveindex += 1;
         }
     }
@@ -636,7 +636,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
         for _k in 0..captures.count_ones() {
             let attack = captures.trailing_zeros() as usize;
             captures.pop_bit(attack);
-            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 1, 0, 0, 0);
+            movelist[moveindex] = moves::Move::new(bishop as u16, attack as u16, 4);
             moveindex += 1;
         }
     }
@@ -658,7 +658,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             for _n in 0..nopinenpassant.count_ones() {
                 let pawn = nopinenpassant.trailing_zeros() as u16;
                 nopinenpassant.pop_bit(pawn as usize);
-                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 5);
                 moveindex += 1;
             }
             if board.enpassant & board.movemasks[3] != 0 {
@@ -666,7 +666,7 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
                 if pinenpassant != 0 {
                     let pawn = pinenpassant.trailing_zeros() as u16;
 
-                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 5);
                     moveindex += 1;
                 }
             }
@@ -684,16 +684,16 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
                 let attack = attacks.trailing_zeros() as u16;
                 attacks.pop_bit(attack as usize);
                 if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 12);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 13);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 14);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 15);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 4);
                     moveindex += 1;
                 }
             }
@@ -711,16 +711,16 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             if attacks != 0 {
                 let attack = attacks.trailing_zeros() as u16;
                 if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 12);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 13);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 14);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 15);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 4);
                     moveindex += 1;
                 }
             }
@@ -742,14 +742,14 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             for _n in 0..nopinenpassant.count_ones() {
                 let pawn = nopinenpassant.trailing_zeros() as u16;
                 nopinenpassant.pop_bit(pawn as usize);
-                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
+                movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 5);
                 moveindex += 1;
             }
             if board.enpassant & board.movemasks[3] != 0 {
                 let pinenpassant = piececonstants::PAWN_ATTACKS[0][ensquare as usize] & pind;
                 if pinenpassant != 0 {
                     let pawn = pinenpassant.trailing_zeros() as u16;
-                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 1, 0, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, ensquare as u16, 5);
                     moveindex += 1;
                 }
             }
@@ -766,16 +766,16 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
                 let attack = attacks.trailing_zeros() as u16;
                 attacks.pop_bit(attack as usize);
                 if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 12);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 13);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 14);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 15);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 4);
                     moveindex += 1;
                 }
             }
@@ -793,16 +793,16 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
             if attacks != 0 {
                 let attack = attacks.trailing_zeros() as u16;
                 if promoterow.get_bit(pawn as usize) != 0 {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 12);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 0, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 13);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 14);
                     moveindex += 1;
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 1, 1, 1);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 15);
                     moveindex += 1;
                 } else {
-                    movelist[moveindex] = moves::Move::new(pawn, attack, 1, 0, 0, 0);
+                    movelist[moveindex] = moves::Move::new(pawn, attack, 4);
                     moveindex += 1;
                 }
             }

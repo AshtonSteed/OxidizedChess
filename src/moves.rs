@@ -20,14 +20,7 @@ pub use u16 as Move;
 
 pub trait MoveStuff {
     fn print(&self, full: bool);
-    fn new(
-        initial_square: u16,
-        target_square: u16,
-        capture: u16,
-        promotion: u16,
-        special1: u16,
-        special2: u16,
-    ) -> Move;
+    fn new(initial_square: u16, target_square: u16, flags: u16) -> Move;
     fn get_initial(&self) -> u16;
     fn get_final(&self) -> u16;
     fn get_extra(&self) -> u16;
@@ -37,21 +30,9 @@ pub trait MoveStuff {
 
 impl MoveStuff for Move {
     #[inline(always)]
-    fn new(
-        initial_square: u16,
-        target_square: u16,
-        capture: u16,
-        promotion: u16,
-        special1: u16,
-        special2: u16,
-    ) -> Move // special list: 00 n, 01 b, 10 r, 11 q
+    fn new(initial_square: u16, target_square: u16, flags: u16) -> Move // special list: 00 n, 01 b, 10 r, 11 q
     {
-        return initial_square
-            | (target_square << 6)
-            | (special2 << 12)
-            | (special1 << 13)
-            | (capture << 14)
-            | (promotion << 15);
+        return initial_square | (target_square << 6) | (flags << 12);
     }
     #[inline(always)]
     fn get_initial(&self) -> u16 {
