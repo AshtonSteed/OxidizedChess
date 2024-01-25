@@ -493,9 +493,10 @@ pub fn is_draw(positionstack: &[Board], ply: usize, halfcount: usize) -> bool {
         true;
     }
 
-    // Check for single repitition in search
+    // Check for double repitition in search
     let depth = ply.min(halfcount);
     let now = positionstack[ply].key;
+    //let mut n = 0;
     for i in ply - depth..ply {
         if positionstack[i].key == now {
             return true;

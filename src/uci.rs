@@ -50,23 +50,33 @@ pub fn parse_position(
 
     board.parse_fen(fen);
     *halfcount += 1;
+    let mut past = vec![board.key];
+    // First find how many moves are non repeatable while updating the board.
 
     if segments.len() > movei {
-        ttable.set_value(board.key, u16::MAX, usize::MAX, piececonstants::CONTEMPT);
+        //ttable.set_value(board.key, u16::MAX, usize::MAX, piececonstants::CONTEMPT);
         for i in &segments[movei + 1..] {
             let m = parse_move(i.to_string(), board);
             let temp = board.clone();
             make_move(board, &m);
-            if i != &segments[segments.len() - 1] {
-                ttable.set_value(board.key, u16::MAX, usize::MAX, piececonstants::CONTEMPT);
-            }
+            past.push(temp.key);
 
             if !temp.is_repeat(&board) {
                 //println!("Move {} is not repeatable", m.to_uci());
                 *halfcount = 0;
             }
+            if ttable.read_move(board.key) == None {
+                ttable.clear_entry(board.key);
+            }
 
             *halfcount += 1;
+        }
+        let length = past.len();
+        for i in 2..*halfcount {
+            let pos = past[length - i];
+            if pos != board.key {
+                ttable.set_value(pos, u16::MAX, usize::MAX, piececonstants::CONTEMPT)
+            }
         }
     }
 }

@@ -156,10 +156,10 @@ pub const PHASEWEIGHT: [i32; 6] = [0, 155, 305, 405, 1050, 0];
 pub const MIDGAME: f64 = 5255.; //
 pub const ENDGAME: f64 = 435.;
 pub const CONTEMPT: i32 = 0; // 4x the comtempt factor
-pub const LMRCOUNT: usize = 4; // 4
+pub const LMRCOUNT: usize = 4; // (4) minimum number of moves before LMR takes effect
 pub const INTERNALREDUCTION: usize = 6; // TODO: mess with these values 3
-pub const LMRLEVEL: f64 = 0.5; //.5
-                               // MVVLVA [ATTACKER][TARGET]
+pub const LMRLEVEL: f64 = 0.45; // (.5) scales how aggresive LMR is
+                                // MVVLVA [ATTACKER][TARGET]
 pub const MVV_LVA: [[i32; 12]; 12] = [
     [0, 0, 0, 0, 0, 0, 105, 205, 305, 405, 505, 605],
     [0, 0, 0, 0, 0, 0, 104, 204, 304, 404, 504, 604],

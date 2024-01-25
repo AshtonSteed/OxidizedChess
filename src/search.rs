@@ -75,6 +75,12 @@ impl Transpositiontable {
         entry.1 = 0;
     }
 
+    pub fn clear_entry(&mut self, key: u64) {
+        let index = key & (piececonstants::TTABLEMASK as u64);
+        let entry = &mut self.0[index as usize];
+        *entry = (0, 0, 1, 1);
+    }
+
     pub fn crude_full(&self) -> u32 {
         let mut nonzero = 0;
 
