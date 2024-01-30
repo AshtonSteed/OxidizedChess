@@ -1,4 +1,10 @@
-use crate::{movegen, moves, piececonstants};
+use std::mem::swap;
+
+use crate::{
+    movegen,
+    moves::{self, MoveStuff},
+    piececonstants,
+};
 
 #[derive(Copy, Clone)]
 pub struct Board {
@@ -58,6 +64,11 @@ impl Board {
         let selfside = !side;
         let base = side as usize * 6; // enemy base score
         let square = self.pieceboards[selfside as usize * 6 + 5].trailing_zeros() as usize;
+
+        assert!(square != 64, "No King On Board! {}", {
+            self.print_board();
+            "Board:"
+        });
         //self.print_board();
 
         let attacked = (piececonstants::PAWN_ATTACKS[!side as usize][square]
@@ -81,6 +92,8 @@ impl Board {
             }
         }
         // need this to sate the compilier, shouldnt ever happen
+        self.print_board();
+
         panic!("No Attacker found for square {}", square);
     }
     #[inline(always)]
@@ -101,6 +114,20 @@ impl Board {
 
             panic!("Target square {} is not empty or enemy", square);
         }
+    }
+
+    #[inline(always)]
+    pub fn piece_on(&self, square: usize) -> usize {
+        // assumes that piece is of current side
+        let squareboard = 1u64 << square;
+
+        for i in 0..6 {
+            if squareboard & (self.pieceboards[i + 6] | self.pieceboards[i]) != 0 {
+                return i;
+            }
+        }
+        // need this to sate the compilier, shouldnt ever happen
+        panic!("No Piece found for square {}", square);
     }
     pub fn print_attacks(&self) {
         let mut attackboard: u64 = 0;
@@ -349,11 +376,11 @@ impl Board {
         // Pawn structure summations, W is positive7
         let doublepawns = ((wspan & self.pieceboards[0]).count_ones() as i32
             - (self.pieceboards[6] & bspan).count_ones() as i32);
-        let passedpawns = ((!(bspan | bspan.left() | bspan.right()) & self.pieceboards[0])
+        let passedpawns = (!(bspan | bspan.left() | bspan.right()) & self.pieceboards[0])
             .count_ones() as i32
-            - (!(wspan | wspan.left() | wspan.right()) & self.pieceboards[6]).count_ones() as i32);
-        let isopawns = ((self.pieceboards[0] & !wiso).count_ones() as i32
-            - (self.pieceboards[6] & !biso).count_ones() as i32);
+            - (!(wspan | wspan.left() | wspan.right()) & self.pieceboards[6]).count_ones() as i32;
+        let isopawns = (self.pieceboards[0] & !wiso).count_ones() as i32
+            - (self.pieceboards[6] & !biso).count_ones() as i32;
 
         //println!("{} {} {}", doublepawns, passedpawns, isopawns);
         midgame += passedpawns * piececonstants::PAWN_STRUCTURE_VALUES[0][0]
@@ -367,9 +394,12 @@ impl Board {
 
         // finish pawn forward move mobility
         mobility += ((self.pieceboards[0] << 8) & !self.occupancies[2]).count_ones() as i32
-            - ((self.pieceboards[6] << 8) & !self.occupancies[2]).count_ones() as i32;
+            - ((self.pieceboards[6] >> 8) & !self.occupancies[2]).count_ones() as i32;
+
         midgame += mobility / piececonstants::MOBILITY_SCALE;
-        endgame += mobility / piececonstants::MOBILITY_SCALE;
+        endgame += (mobility + virtual_mobility) / piececonstants::MOBILITY_SCALE;
+
+        //println!("{} {}", mobility, virtual_mobility);
 
         let factor = 1.0_f64.min(0.0_f64.max(
             (phase as f64 - piececonstants::ENDGAME)
@@ -379,6 +409,121 @@ impl Board {
         //let factor = 1.0 / (1.0 + (-0.002 * phase as f64 + 5.6).exp());
 
         return (factor * midgame as f64 + (1. - factor) * endgame as f64) as i32 * 4 * side;
+    }
+
+    // Statically evaluates a move and decide if it is better than a given threshold. This should allow for cheap seperation of bad moves.
+    // True means that the capture is good according to the threshold (capture is better than the minimum of the threshold)
+    pub fn see(&self, m: &moves::Move, threshold: i32) -> bool {
+        if m.get_extra() != 4 {
+            // For non-normal captures, return if it is a good capture initially
+            return 0 >= threshold;
+        }
+
+        let from = m.get_initial() as usize;
+        let to = m.get_final() as usize;
+
+        let mut swap = piececonstants::PIECEWEIGHT[self.piece_on(to)] - threshold;
+
+        if swap < 0 {
+            // If material gained is strictly bad, return a bad capture
+            return false;
+        }
+
+        swap = piececonstants::PIECEWEIGHT[self.piece_on(from)] - swap;
+
+        if swap <= 0 {
+            // If the capture is still bad with the threshold, assume it is bad
+            return true;
+        }
+
+        let mut side = self.side.unwrap_or_default() as usize;
+
+        // gather all pieces that might lead to discovered xrays
+        //let notknights = !(self.pieceboards[1] | self.pieceboards[7]);
+
+        let mut occupancy = self.occupancies[2] ^ (1 << from) ^ (1 << to);
+
+        let mut res = 1;
+
+        let mut stmattackers;
+
+        let mut bb;
+        let mut bigside;
+
+        // Get a bitboard of all pieces currently attacking the attacked square
+        let mut attadef = (piececonstants::PAWN_ATTACKS[0][to] & self.pieceboards[6])
+            | (piececonstants::PAWN_ATTACKS[1][to] & self.pieceboards[0])
+            | (piececonstants::KNIGHT_ATTACKS[to] & (self.pieceboards[1] | self.pieceboards[7]))
+            | (piececonstants::get_bishop_attacks(to, occupancy)
+                & (self.pieceboards[2]
+                    | self.pieceboards[4]
+                    | self.pieceboards[8]
+                    | self.pieceboards[10]))
+            | (piececonstants::get_rook_attacks(to, occupancy)
+                & (self.pieceboards[3]
+                    | self.pieceboards[4]
+                    | self.pieceboards[9]
+                    | self.pieceboards[10]))
+            | (piececonstants::KING_ATTACKS[to] & (self.pieceboards[6] | self.pieceboards[11]));
+
+        'outer: loop {
+            side = side ^ 1;
+
+            bigside = side * 6;
+
+            attadef &= occupancy;
+
+            stmattackers = attadef & self.occupancies[side];
+            if stmattackers == 0 {
+                // attacking side has no more attackers
+                break;
+            }
+
+            res ^= 1;
+
+            // Find next least valuable attacker
+            for i in 0..6 {
+                bb = stmattackers & (self.pieceboards[bigside + i]);
+                if i == 6 {
+                    if attadef & !self.occupancies[side] != 0 {
+                        return (res ^ 1) == 1;
+                    } else {
+                        return res == 1;
+                    }
+                } else if bb != 0 {
+                    swap = piececonstants::PIECEWEIGHT[i] - swap;
+                    if swap < res {
+                        break 'outer;
+                    }
+
+                    occupancy.pop_bit(bb.trailing_zeros() as usize);
+
+                    // Check for discovered attacks
+                    match i {
+                        0 | 2 => {
+                            attadef |= piececonstants::get_bishop_attacks(to, occupancy)
+                                & (self.pieceboards[bigside + 2] | self.pieceboards[bigside + 4])
+                        }
+                        3 => {
+                            attadef |= piececonstants::get_rook_attacks(to, occupancy)
+                                & (self.pieceboards[bigside + 3] | self.pieceboards[bigside + 4])
+                        }
+                        4 => {
+                            attadef |= (piececonstants::get_bishop_attacks(to, occupancy)
+                                & (self.pieceboards[bigside + 2] | self.pieceboards[bigside + 4]))
+                                | piececonstants::get_rook_attacks(to, occupancy)
+                                    & (self.pieceboards[bigside + 3]
+                                        | self.pieceboards[bigside + 4])
+                        }
+                        _ => {}
+                    }
+                    break;
+                }
+            }
+        }
+        //println!("{}", swap);
+
+        res == 1
     }
 }
 

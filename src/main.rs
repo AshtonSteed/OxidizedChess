@@ -7,7 +7,7 @@ extern crate lazy_static;
 mod engine;
 
 use engine::{BitBoard, Board};
-use movegen::generate_moves;
+use movegen::{generate_captures, generate_moves};
 use rand::Rng;
 use uci::uci_loop;
 
@@ -36,23 +36,27 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 //cargo rustc --bin OxidizedChess --release -- -Z emit-stack-sizes
 
 fn main() {
-    // TODO: movescoring remake (maybe), Time control stuff,  figure out how to test ELO and refine values
-    // also add a system to keep track of gamestate over time and check for repititions better
+    // TODO: figure out how to refine values, consider aspiration windows, reconsider draw stuff again
     // futility pruning could be useful
 
     uci_loop();
+
     /*
+
     let mut board = Board::default();
     let mut moves = vec![0; 256];
-    board.parse_fen("8/2k5/8/3pP3/2K5/8/8/8 w - d6 0 1".to_string());
-    let i = generate_moves(&mut board, &mut moves);
-    for j in 0..i {
-        println!("{}", moves[j].to_uci());
-    }
+    board.parse_fen("k7/P7/p7/p1p5/P1P5/P3p3/p7/K7 w - - 0 1".to_string());
+    let i = generate_captures(&mut board, &mut moves);
+    // NO clue what the threshold is
+    // Lower threshold allows for worse moves to be considered good, honestly probably good
+
     board.print_board();
+
+    println!("{}", board.evaluate());
+    board.evaluate();
     board.movemasks[0].print_bitboard();
-    board.movemasks[1].print_bitboard();*/
-    //board.movemasks[2].print_bitboard();
+    board.movemasks[1].print_bitboard();
+    //board.movemasks[2].print_bitboard();*/
 }
 
 /*  let king_attack = movegen::refresh(&mut board);

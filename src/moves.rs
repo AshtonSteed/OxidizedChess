@@ -308,29 +308,25 @@ fn shift_down(moves: &mut [u16], scores: &mut [i32], start: usize, end: usize) {
     }
 }
 #[inline]
-pub fn build_max_heap(moves: &mut [u16], scores: &mut [i32], size: usize) {
+pub fn build_max_heap(moves: &mut [u16], scores: &mut [i32], size: usize, start: usize) {
     // Build a min heap.
     for i in (0..size / 2).rev() {
-        shift_down(moves, scores, i, size - 1);
+        shift_down(&mut moves[start..], &mut scores[start..], i, size - 1);
     }
 }
 
 // Swap best move to end of heap and find next best move
 #[inline]
-pub fn next_move(moves: &mut [u16], scores: &mut [i32], size: usize, i: usize) {
+pub fn next_move(moves: &mut [u16], scores: &mut [i32], size: usize, i: usize, start: usize) {
     let end: usize = size - i - 1;
     //println!("{} {} {}", size, i, end);
 
     assert!(end != 0);
-    // Only one move left, already sorted
-    if end == 0 {
-        return;
-    }
 
-    scores.swap(0, end); // Swap
-    moves.swap(0, end);
+    scores.swap(start, end + start); // Swap
+    moves.swap(start, end + start);
 
-    shift_down(moves, scores, 0, end - 1);
+    shift_down(&mut moves[start..], &mut scores[start..], 0, end - 1);
     /*
     let mut max = 0;
     let mut k = 0;
@@ -356,12 +352,13 @@ pub fn pick_move(
     totalmoves: &mut usize,
     i: &mut usize,
     movephase: &mut usize,
+    badcaptures: &mut usize,
+    badcapstart: &mut usize,
     killers: &Vec<u16>,
     history: &Vec<Vec<usize>>,
     quiets: bool,
     tmove: Option<Move>,
 ) -> Move {
-    //println!("{}, {}, {}", i, movecount, movephase);
     //println!("{}", movephase);
     //println!("{:?}", tmove);
     loop {
@@ -376,11 +373,11 @@ pub fn pick_move(
             1 => {
                 //Init captures
                 *movecount = movegen::generate_captures(position, moves);
-                //println!("Gen : {:?}", moves.get(..*movecount));
 
                 score_moves(moves, scores, movecount, position, killers, history, tmove);
                 //println!("Score : {:?}", moves.get(..*movecount));
                 *totalmoves += *movecount;
+                *badcapstart = *movecount;
                 // check if no captures
                 if *movecount == 0 {
                     // skip to quiets
@@ -389,14 +386,17 @@ pub fn pick_move(
                 }
                 //println!("Moves: {}", movecount);
                 //println!("Captures : {:?}", scores.get(0..*movecount));
-                build_max_heap(moves, scores, *movecount);
+                build_max_heap(moves, scores, *movecount, 0);
                 //put first move at position 0
 
                 *movephase += 1;
                 *i = 0;
-                break;
+                return moves[0];
             }
-            2 | 4 => {
+            2 => {
+                // TODO: split this up into captures and quiets, add a SEE check for captures. Use (7?) * capture score for threshold
+                // Maybe a different number.
+                // If move fails, move it to an unique area reserved for bad captures.
                 //println!("Moves: {:?}", moves.get(0..*movecount));
                 //println!("Scores Before: {:?}", scores.get(0..*movecount));
                 if *i >= *movecount - 1 {
@@ -404,33 +404,78 @@ pub fn pick_move(
                     continue;
                 }
                 // Pick next move
-                next_move(moves, scores, *movecount, *i);
-                //println!("Next : {:?}", scores.get(..*movecount));
+                next_move(moves, scores, *movecount, *i, 0);
                 *i += 1;
 
-                break;
+                // Check SEE for bad captures, threshold as n * move score
+                // Stockfish uses n = 7, seems crazy to me
+                if !position.see(&moves[0], -2 * scores[0]) {
+                    *badcaptures += 1;
+                    moves[*badcapstart - *badcaptures] = moves[0];
+                    continue;
+                }
+
+                //println!("Next : {:?}", scores.get(..*movecount));
+
+                return moves[0];
             }
             3 => {
                 // Check if quiets are being generated
                 if !quiets {
+                    // If not, dont consider bad captures
                     return 0;
                 }
                 // Generate quiet moves
-                *movecount = movegen::generate_quiets(position, moves, 0);
+                *movecount = movegen::generate_quiets(position, moves, *badcapstart) - *badcapstart;
 
-                score_moves(moves, scores, movecount, position, killers, history, tmove);
+                //println!("{:?} {} {}", moves, badcapstart, movecount);
+
+                score_moves(
+                    &mut moves[*badcapstart..],
+                    &mut scores[*badcapstart..],
+                    movecount,
+                    position,
+                    killers,
+                    history,
+                    tmove,
+                );
                 //println!("{}", movecount);
                 *totalmoves += *movecount;
                 if *movecount == 0 {
                     *movephase += 2;
                     continue;
                 }
-                build_max_heap(moves, scores, *movecount);
+                build_max_heap(moves, scores, *movecount, *badcapstart);
 
                 //println!("Quiets : {:?}", scores.get(0..*movecount));
                 *movephase += 1;
                 *i = 0;
-                break;
+                return moves[*badcapstart];
+            }
+            4 => {
+                // Quiet moves
+                if *i >= *movecount - 1 {
+                    *movephase += 1;
+
+                    continue;
+                }
+                // Pick next move
+                next_move(moves, scores, *movecount, *i, *badcapstart);
+                *i += 1;
+
+                return moves[*badcapstart];
+            }
+            5 => {
+                //println!("{}", badcaptures);
+                if *badcaptures < 1 {
+                    *movephase += 1;
+                    continue;
+                }
+
+                // Bad captures
+                let m = moves[*badcapstart - *badcaptures];
+                *badcaptures -= 1;
+                return m;
             }
             _ => return 0, // All moves used, nothing is left
         };

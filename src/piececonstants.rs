@@ -38,6 +38,12 @@ pub fn get_queen_attacks(square: usize, occupancy: u64) -> u64 {
         | SLIDER_ATTACKS[ROOK_POINTERS[square] + rook_occupancy as usize]
     // returns rook + bishop attacks from square
 }
+
+#[inline(always)]
+pub const fn draw_score(ply: usize) -> i32 {
+    // find draw score relative to side to move
+    (1 + (ply % 2) as i32 * -2) * CONTEMPT
+}
 // size of stored transpotiion table at given time
 pub const TTABLEMASK: usize = 0x7FFFFF; //2^23 - 1 :0x7FFFFF; //2^23 - 1
 pub const RTABLEMASK: usize = 0x3FFF; //2^14 - 1
@@ -150,16 +156,16 @@ pub const SQUARE_TO_COORDINATES: [&str; 65] = [
     "NA",
 ];
 
-pub const PIECEWEIGHT: [i32; 5] = [100, 288, 345, 480, 1077];
+pub const PIECEWEIGHT: [i32; 6] = [100, 288, 345, 480, 1077, 100000];
 
 pub const PHASEWEIGHT: [i32; 6] = [0, 155, 305, 405, 1050, 0];
 pub const MIDGAME: f64 = 5255.; //
 pub const ENDGAME: f64 = 435.;
 pub const CONTEMPT: i32 = 0; // 4x the comtempt factor
-pub const LMRCOUNT: usize = 4; // (4) minimum number of moves before LMR takes effect
+pub const LMRCOUNT: usize = 0; // (4) minimum number of moves before LMR takes effect
 pub const INTERNALREDUCTION: usize = 6; // TODO: mess with these values 3
-pub const LMRLEVEL: f64 = 0.45; // (.5) scales how aggresive LMR is
-                                // MVVLVA [ATTACKER][TARGET]
+pub const LMRLEVEL: f64 = 0.5; // (.5) scales how aggresive LMR is
+                               // MVVLVA [ATTACKER][TARGET]
 pub const MVV_LVA: [[i32; 12]; 12] = [
     [0, 0, 0, 0, 0, 0, 105, 205, 305, 405, 505, 605],
     [0, 0, 0, 0, 0, 0, 104, 204, 304, 404, 504, 604],
@@ -180,9 +186,9 @@ pub const CASTLING_RIGHTS: [u8; 64] = [
     15, 15, 15, 15, 15, 15, 15, 15, 13, 15, 15, 15, 12, 15, 15, 14,
 ];
 // Passed, Isolated, Doubles
-pub const PAWN_STRUCTURE_VALUES: [[i32; 3]; 2] = [[7, -15, -5], [20, -5, -10]];
+pub const PAWN_STRUCTURE_VALUES: [[i32; 3]; 2] = [[7, -10, -10], [20, -5, -10]];
 
-pub const MOBILITY_SCALE: i32 = 20;
+pub const MOBILITY_SCALE: i32 = 2;
 
 pub const BISHOP_MOBILITY: [i32; 2] = [5, 5];
 pub const QUEEN_MOBILITY: [i32; 2] = [1, 2];
