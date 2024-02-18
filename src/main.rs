@@ -37,7 +37,8 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 
 fn main() {
     // TODO: figure out how to refine values, consider aspiration windows, reconsider draw stuff again
-    // futility pruning could be useful
+    // futility pruning could be useful, Singular and Check extensions seem to be big
+    // Add material draws into code
 
     uci_loop();
 
