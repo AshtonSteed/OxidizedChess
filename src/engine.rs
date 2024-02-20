@@ -3,7 +3,7 @@ use std::mem::swap;
 use crate::{
     movegen,
     moves::{self, MoveStuff},
-    piececonstants,
+    piececonstants::{self, draw_score},
 };
 
 #[derive(Copy, Clone)]
@@ -260,8 +260,31 @@ impl Board {
         //self.enpassant = piececonstants::Square::segments[3].unwrap()
     }
     #[inline(always)]
-    pub fn evaluate(&mut self) -> i32 {
+    pub fn evaluate(&mut self, ply: usize) -> i32 {
         let side = (self.side == Some(0)) as i32 * 2 - 1;
+
+        // check for insufficient material draw
+        // KvK, KMvK, KBvKB(same color)
+        if self.occupancies[2].count_ones() <= 4 {
+            let kings = self.pieceboards[5] | self.pieceboards[11];
+
+            if self.occupancies[2] == kings
+                || (self.occupancies[2].count_ones() == 3
+                    && (self.occupancies[2]
+                        == kings
+                            | self.pieceboards[1]
+                            | self.pieceboards[2]
+                            | self.pieceboards[7]
+                            | self.pieceboards[8]))
+            /*|| {
+                self.occupancies[0].count_ones() == 2
+                    && (self.occupancies[2]
+                        == kings | self.pieceboards[2] | self.pieceboards[8])
+            }*/
+            {
+                return draw_score(ply);
+            }
+        }
 
         //let mut score = 0;
         let mut midgame = 0;

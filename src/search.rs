@@ -279,14 +279,16 @@ pub fn negamax(
         //println!("1");
         return piececonstants::draw_score(ply);
     }
+    let cut = (beta + 1) & !3; //IBV tomfoolery
+    let mut alpha2 = (alpha + 1) & !3; // IBV tomfoolery again?
     let tscore = ttable.read_value(key, depth);
     match tscore {
         Some(score) => {
             if {
                 match score & 3 {
                     0 => true,
-                    1 => score >= beta,
-                    3 => score <= alpha,
+                    1 => score >= cut,
+                    3 => score <= alpha2,
                     _ => false,
                 }
             } & !pruneflags.1
@@ -306,6 +308,7 @@ pub fn negamax(
             movestack,
             scores,
             ply,
+            0,
             alpha,
             beta,
             ttable,
@@ -320,7 +323,6 @@ pub fn negamax(
         //ttable.set_value(key, 0, 0, score);
         return score;
     }
-    let cut = (beta + 1) & !3; //IBV tomfoolery 199492
 
     // Null Move Pruning
     let side = positionstack[ply].side.unwrap() as usize;
@@ -382,7 +384,7 @@ pub fn negamax(
 
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
-    let mut alpha2 = (alpha + 1) & !3; // IBV tomfoolery again?
+
     let side = positionstack[ply].side.unwrap() as usize;
 
     //create a min heap for moves
@@ -570,7 +572,7 @@ pub fn negamax(
     }
 
     if j == 0 {
-        if positionstack[ply].movemasks[1] != u64::MAX {
+        if kingattacked {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);
@@ -597,17 +599,17 @@ pub fn negamax(
     alpha2
 }
 
-//#[inline]
+#[inline]
 pub fn quiescent(
     positionstack: &mut Vec<Board>,
     count: &mut usize,
     movestack: &mut Vec<Vec<u16>>,
     scores: &mut Vec<Vec<i32>>,
     ply: usize,
+    qply: usize,
     alpha: i32,
     beta: i32,
     ttable: &mut Transpositiontable,
-
     killertable: &mut Vec<Vec<u16>>,
     historytable: &mut Vec<Vec<Vec<usize>>>,
     stopped: &mut bool,
@@ -636,19 +638,21 @@ pub fn quiescent(
 
         None => {}
     }*/
-    let eval = positionstack[ply].evaluate();
+    let in_check = positionstack[ply].is_king_attacked();
+    let eval = positionstack[ply].evaluate(ply);
     let cut = (beta + 1) & !3; //IBV tomfoolery
-    if eval >= cut {
+    let mut alpha2 = (alpha + 1) & !3;
+    if eval >= cut && (!in_check || qply <= 0) {
         return cut + 1;
     }
-    let big_delta = 4000; // queen value, ignore promotion moves for now && !positionstack[ply].is_king_attacked()
+    let big_delta = 3600; // queen value, ignore promotion moves for now && !positionstack[ply].is_king_attacked()
 
-    if (eval + big_delta < alpha) || ply == piececonstants::MAXPLY - 1 {
+    if (eval + big_delta < alpha2) || ply == piececonstants::MAXPLY - 1 {
         //&& !positionstack[ply].is_king_attacked() Consider not in check
         // If no move can improve alpha
         return alpha;
     }
-    let mut alpha2 = if eval > alpha { eval } else { alpha };
+    alpha2 = if eval > alpha2 { eval } else { alpha2 };
 
     // Extract move from Transposition Table
     let tmove = ttable.read_move(positionstack[ply].key);
@@ -665,8 +669,6 @@ pub fn quiescent(
         None => 1,
     };
 
-    let mut maxh = 1;
-
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
 
@@ -676,10 +678,11 @@ pub fn quiescent(
 
     let mut index = 0;
     let mut i = 0;
+    let mut j = 0;
     let mut totalmoves = 0;
     let mut badcaps = 0;
     let mut badindex = 0;
-    let mut bestmove = 0;
+    //let mut bestmove = 0;
 
     loop {
         let m = moves::pick_move(
@@ -694,16 +697,17 @@ pub fn quiescent(
             &mut badindex,
             &killertable[ply],
             &historytable[side],
-            false,
+            in_check && (qply <= 0),
             tmove,
         );
 
         if m == 0 {
             break;
         }
-        if i == 0 {
+        /*if i == 0 {
             bestmove = m;
-        }
+        }*/
+        j += 1;
 
         positionstack[ply + 1] = positionstack[ply].clone();
 
@@ -717,6 +721,7 @@ pub fn quiescent(
             movestack,
             scores,
             ply + 1,
+            qply + 1,
             -beta,
             -alpha2,
             ttable,
@@ -726,19 +731,27 @@ pub fn quiescent(
             starttime,
             timelimit,
         );
+        if score > alpha2 {
+            //bestmove = m;
+            if score >= cut {
+                // lower bound, cut node
+                alpha2 = beta;
 
-        if score >= cut {
-            bestmove = m;
-            // lower bound, cut node
-            alpha2 = ((score + 1) & !3) + 1;
+                break;
+            }
 
-            break;
-        } else if score > alpha2 {
-            bestmove = m;
             alpha2 = score;
         }
     }
-    if alpha2 == (alpha + 1) & !3 {
+    if j == 0 && ((in_check && qply <= 0) || !movegen::has_quiets(&mut positionstack[ply])) {
+        if in_check {
+            let score = 4 * (piececonstants::MATESCORE + ply as i32);
+            return score;
+        } else {
+            let score = piececonstants::draw_score(ply);
+            return score;
+        }
+    } else if alpha2 == (alpha + 1) & !3 {
         // upper bound, open node
         alpha2 = ((alpha + 1) & !3) - 1;
     } else if alpha2 == beta {
@@ -815,6 +828,7 @@ pub fn zerowindow(
             movestack,
             scores,
             ply,
+            0,
             beta - 4,
             beta,
             ttable,
@@ -1074,7 +1088,7 @@ pub fn zerowindow(
         }
     }
     if j == 0 {
-        if positionstack[ply].movemasks[1] != u64::MAX {
+        if kingattacked {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);

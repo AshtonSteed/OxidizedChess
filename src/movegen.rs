@@ -10,9 +10,6 @@ pub fn refresh(
     // kingban must be initialized as enemy kings attack
     board: &mut engine::Board,
 ) {
-    // sets checkmask to all 1s
-    let mut checkmask = u64::MAX;
-
     let mut rook_pin = 0;
     let mut bishop_pin = 0;
 
@@ -20,6 +17,9 @@ pub fn refresh(
     let enemy_raw = (board.side == Some(0)) as usize;
     let side = 6 * raw_side;
     let enemy = 6 * enemy_raw; // acts opposite of side to move
+                               // sets checkmask to all 1s execpt for enemy king
+
+    let mut checkmask = !board.pieceboards[enemy + 5];
     let kingboard = board.pieceboards[5 + side];
     let mut kingban =
         piececonstants::KING_ATTACKS[board.pieceboards[5 + enemy].trailing_zeros() as usize];
@@ -815,4 +815,230 @@ pub fn generate_captures(board: &mut engine::Board, movelist: &mut [u16]) -> usi
 pub fn generate_moves(board: &mut engine::Board, movelist: &mut [u16]) -> usize {
     let c = generate_captures(board, movelist);
     return generate_quiets(board, movelist, c);
+}
+
+// Checks to see if the position has any quiet moves, used to check for checkmate and stalemate in q search
+pub fn has_quiets(board: &mut engine::Board) -> bool {
+    //let mut moves: Vec<moves::Move> = Vec::new();
+    //let mut moveindex = generate_captures(board, movelist);
+
+    let raw_side = (board.side == Some(1)) as usize;
+    let raw_enemy = (board.side == Some(0)) as usize;
+    let side = raw_side * 6;
+    //let enemy = raw_enemy * 6;
+
+    // quiet king
+    let mut king_quiet = board.movemasks[4] & !board.occupancies[2];
+
+    let moveable = !board.occupancies[raw_side] & board.movemasks[1];
+
+    let kingsq = board.pieceboards[side + 5].trailing_zeros() as usize;
+
+    //king quiet
+    if king_quiet != 0 {
+        return true;
+    }
+
+    // castling
+    let shift = raw_side * 2;
+    let (m1, m2, m3, m4): (u64, u64, u64, u64) = match raw_side {
+        0 => (
+            0x7000000000000000,
+            0x6000000000000000,
+            0x1C00000000000000,
+            0xE00000000000000,
+        ),
+        1 => (0x70, 0x60, 0x1C, 0xE),
+        _ => (0, 0, 0, 0),
+    };
+    //kingside
+    let rights = board.castle >> shift;
+
+    if rights & 1 == 1
+        && m1 & board.movemasks[0] == 0 // checks for attacks along king path and check
+        && m2 & board.occupancies[2] == 0
+    //checks for obsructions
+    {
+        return true;
+    }
+    //queenside
+    if rights & 2 == 2
+        && m3 & board.movemasks[0] == 0 // checks for attacks along king path and check
+        && m4 & board.occupancies[2] == 0
+    //checks for obsructions
+    {
+        return true;
+    }
+
+    //knights
+    let mut knights = board.pieceboards[side + 1] & !(board.movemasks[2] | board.movemasks[3]); // prunes pinned knights, they cannot move
+
+    for _i in 0..knights.count_ones() {
+        let knight = knights.trailing_zeros() as usize;
+        knights.pop_bit(knight);
+        let attacks = piececonstants::KNIGHT_ATTACKS[knight] & moveable; //prunes night moves to those that follow the checkmask and dont self capture
+
+        let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides night moves to those that dont capture
+
+        if quiet != 0 {
+            return true;
+        }
+    }
+    //rooks and queenHV
+    let rooksq =
+        (board.pieceboards[side + 4] | board.pieceboards[side + 3]) & !(board.movemasks[3]); // no hv when diagonally pinned
+    let mut rooksqpin = rooksq & board.movemasks[2];
+    let mut rooksqno = rooksq & !board.movemasks[2];
+
+    //pinned rooks
+    for _i in 0..rooksqpin.count_ones() {
+        let rook = rooksqpin.trailing_zeros() as usize;
+        rooksqpin.pop_bit(rook);
+        let attacks = piececonstants::get_rook_attacks(rook, board.occupancies[2])
+            & moveable
+            & board.movemasks[2]; //prunes rook moves to those that follow the checkmask and dont self capture
+
+        let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides rook moves to those that dont capture
+        if quiet != 0 {
+            return true;
+        }
+    }
+    //unpinned rooks
+    for _i in 0..rooksqno.count_ones() {
+        let rook = rooksqno.trailing_zeros() as usize;
+        rooksqno.pop_bit(rook);
+        let attacks = piececonstants::get_rook_attacks(rook, board.occupancies[2]) & moveable; //prunes rook moves to those that follow the checkmask and dont self capture
+
+        let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides rook moves to those that dont capture
+        if quiet != 0 {
+            return true;
+        }
+    }
+
+    //bishops and queenDI
+    let bishopq =
+        (board.pieceboards[side + 4] | board.pieceboards[side + 2]) & !(board.movemasks[2]); // no DI when horizontally pinned
+    let mut bishopqpin = bishopq & board.movemasks[3];
+    let mut bishopqno = bishopq & !board.movemasks[3];
+
+    //pinned bishops
+    for _i in 0..bishopqpin.count_ones() {
+        let bishop = bishopqpin.trailing_zeros() as usize;
+        bishopqpin.pop_bit(bishop);
+        let attacks = piececonstants::get_bishop_attacks(bishop, board.occupancies[2])
+            & moveable
+            & board.movemasks[3]; //prunes bishops moves to those that follow the checkmask and dont self capture
+
+        let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides bishops moves to those that dont capture
+        if quiet != 0 {
+            return true;
+        }
+    }
+    //unpinned bishop
+    for _i in 0..bishopqno.count_ones() {
+        let bishop = bishopqno.trailing_zeros() as usize;
+        bishopqno.pop_bit(bishop);
+        let attacks = piececonstants::get_bishop_attacks(bishop, board.occupancies[2]) & moveable; //prunes bishop moves to those that follow the checkmask and dont self capture
+        let mut quiet = attacks & !board.occupancies[raw_enemy]; //divides bishop moves to those that dont capture
+        if quiet != 0 {
+            return true;
+        }
+    }
+
+    // IDEAS: Divide into a ton of pawn groups, I guess. Gonna make alot of messy, annoying code
+    if raw_side == 0 {
+        let pawns = board.pieceboards[0]; // white pawns
+        let pawnsdiagonal = pawns & !board.movemasks[2]; // can go diagonal
+        let pawnsforward = pawns & !board.movemasks[3]; // can walk forward
+        let mut pinf = pawnsforward & board.movemasks[2]; // forward pawns that are pinned
+        let mut nopinf = pawnsforward & !board.movemasks[2]; //unpinned forward pawns
+
+        let pushrow = 0xFF000000000000u64;
+        let promoterow = 0xFF00u64;
+
+        // quiet normal pawn moves
+        for _i in 0..nopinf.count_ones() {
+            let pawn = nopinf.trailing_zeros() as u16;
+            nopinf.pop_bit(pawn as usize);
+            let pawnb = 1u64 << pawn;
+            let attackb = pawnb >> 8;
+            if attackb & board.occupancies[2] == 0 && attackb & board.movemasks[1] != 0 {
+                return true;
+            }
+            // checks for pushable pawns by checking rank, path clearness, and then check mask
+            if pawnb & pushrow != 0
+                && ((attackb >> 8) | attackb) & board.occupancies[2] == 0
+                && (attackb >> 8) & board.movemasks[1] != 0
+            {
+                return true;
+            };
+        }
+        // pinned normal moves
+        for _j in 0..pinf.count_ones() {
+            let pawn = pinf.trailing_zeros() as u16;
+            pinf.pop_bit(pawn as usize);
+            let pawnb = 1u64 << pawn;
+            let attackb = pawnb >> 8;
+            if attackb & board.occupancies[2] == 0
+                && attackb & board.movemasks[1] != 0
+                && attackb & board.movemasks[2] != 0
+            {
+                return true;
+            }
+            // checks for pushable pawns by checking rank, path clearness,  check mask, and pins
+            if pawnb & pushrow != 0
+                && ((attackb >> 8) | attackb) & board.occupancies[2] == 0
+                && (attackb >> 8) & board.movemasks[1] != 0
+                && (attackb >> 8) & board.movemasks[2] != 0
+            {
+                return true;
+            };
+        }
+    } else {
+        //black pawns
+        let pawns = board.pieceboards[6];
+        let pawnsdiagonal = pawns & !board.movemasks[2]; // can go diagonal
+        let pawnsforward = pawns & !board.movemasks[3]; // can walk forward
+        let mut pinf = pawnsforward & board.movemasks[2]; // forward pawns that are pinned
+        let mut nopinf = pawnsforward & !board.movemasks[2]; //unpinned forward pawns
+        let mut pind = pawnsdiagonal & board.movemasks[3]; // diagonal pawns that are pinned
+        let mut nopind = pawnsdiagonal & !board.movemasks[3]; // unpined diagonal pawns
+
+        let pushrow = 0xFF00u64;
+        let promoterow = 0xFF000000000000u64;
+
+        // quiet normal pawn moves
+        for _i in 0..nopinf.count_ones() {
+            let pawn = nopinf.trailing_zeros() as u16;
+            nopinf.pop_bit(pawn as usize);
+            let pawnb = 1u64 << pawn;
+            let attackb = pawnb << 8;
+            if attackb & board.occupancies[2] == 0 && attackb & board.movemasks[1] != 0 {
+                return true;
+            }
+            // checks for pushable pawns by checking rank, path clearness, and then check mask
+            if pawnb & pushrow != 0
+                && ((attackb << 8) | attackb) & board.occupancies[2] == 0
+                && (attackb << 8) & board.movemasks[1] != 0
+            {
+                return true;
+            };
+        }
+        // pinned normal moves
+        for _j in 0..pinf.count_ones() {
+            let pawn = pinf.trailing_zeros() as u16;
+            pinf.pop_bit(pawn as usize);
+            let pawnb = 1u64 << pawn;
+            let attackb = pawnb << 8;
+            if attackb & board.occupancies[2] == 0
+                && attackb & board.movemasks[1] & board.movemasks[2] != 0
+            {
+                return true;
+            }
+            // checks for pushable pawns by checking rank, path clearness,  check mask, and pins
+            return true;
+        }
+    }
+
+    return false;
 }

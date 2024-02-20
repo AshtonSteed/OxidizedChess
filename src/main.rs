@@ -37,27 +37,26 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 
 fn main() {
     // TODO: figure out how to refine values, consider aspiration windows, reconsider draw stuff again
-    // futility pruning could be useful, Singular and Check extensions seem to be big
-    // Add material draws into code
+    // add incremental time controls
+    // Might be an issue where a pawn can attack and capture a king
 
     uci_loop();
 
-    /*
-
-    let mut board = Board::default();
+    /*let mut board = Board::default();
     let mut moves = vec![0; 256];
-    board.parse_fen("k7/P7/p7/p1p5/P1P5/P3p3/p7/K7 w - - 0 1".to_string());
+    board.parse_fen("k2r4/8/8/8/8/3K4/8/8 b - - 0 1".to_string());
     let i = generate_captures(&mut board, &mut moves);
+    println!("{}", i);
     // NO clue what the threshold is
     // Lower threshold allows for worse moves to be considered good, honestly probably good
 
     board.print_board();
 
-    println!("{}", board.evaluate());
-    board.evaluate();
-    board.movemasks[0].print_bitboard();
-    board.movemasks[1].print_bitboard();
-    //board.movemasks[2].print_bitboard();*/
+    println!("{}", board.evaluate(0));*/
+
+    //board.movemasks[0].print_bitboard();
+    //board.movemasks[1].print_bitboard();
+    //board.movemasks[2].print_bitboard();
 }
 
 /*  let king_attack = movegen::refresh(&mut board);
