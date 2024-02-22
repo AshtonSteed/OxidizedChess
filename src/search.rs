@@ -105,7 +105,17 @@ impl Repititiontable {
         return output;
     }
 }
-
+#[derive(Clone)]
+pub struct TreeLayer {
+    pub board: Board,
+    moves: Vec<u16>,
+    scores: Vec<i32>,
+    killers: Vec<u16>,
+    exmove: u16,
+    nullmoves: usize,
+    PV: bool,
+    in_check: bool,
+}
 pub fn search_position(
     board: &mut Board,
     maxdepth: usize,
@@ -114,38 +124,45 @@ pub fn search_position(
 
     halfcount: usize,
 ) -> u16 {
-    let mut positionstack = vec![board.clone(); piececonstants::MAXPLY];
+    let mut treestack = vec![
+        TreeLayer {
+            board: Board::default(),
+            moves: vec![0; 256],
+            scores: vec![0i32; 256],
+            killers: vec![0; 2],
+            exmove: 0,
+            nullmoves: 0,
+            PV: false,
+            in_check: false,
+        };
+        piececonstants::MAXPLY
+    ];
+    treestack[0].board = board.clone();
+    treestack[0].PV = true;
+
     let mut m = 0;
 
-    let mut killertable = vec![vec![0; 2]; piececonstants::MAXPLY];
     let mut historytable = vec![vec![vec![0usize; 64]; 64]; 2];
 
-    let mut movestack = vec![vec![0; 256]; piececonstants::MAXPLY];
-    let mut movescores = vec![vec![0i32; 256]; piececonstants::MAXPLY];
     let mut stopped = false;
-    let mut pruneflags = (0, true);
+
     let start = Instant::now();
     let mut count = 0;
     for d in 1..=maxdepth {
-        positionstack[0] = board.clone();
+        treestack[0].board = board.clone();
 
         let mut mate = None;
 
         let mut score = negamax(
-            &mut positionstack,
             &mut count,
-            &mut movestack,
-            &mut movescores,
+            &mut treestack,
             d,
             0,
             -100000000,
             100000000,
             ttable,
             halfcount,
-            &mut killertable,
             &mut historytable,
-            &mut pruneflags,
-            0,
             &mut stopped,
             start,
             timelimit,
@@ -170,8 +187,8 @@ pub fn search_position(
             //println!("{:?}   {:?}", m2, score);
             match m2 {
                 Some(j) => {
-                    let _ = movegen::generate_moves(&mut boardcopy, &mut movestack[i]);
-                    if movestack[i].contains(&j) && j != &0 {
+                    let _ = movegen::generate_moves(&mut boardcopy, &mut treestack[i].moves);
+                    if treestack[i].moves.contains(&j) && j != &0 {
                         make_move(&mut boardcopy, j);
                         movestring += &j.to_uci();
                         movestring += " ";
@@ -245,36 +262,33 @@ pub fn search_position(
 // killertable: Killer moves for move eval
 // puneflags (null move count, PV search)
 pub fn negamax(
-    positionstack: &mut Vec<Board>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+    treestack: &mut Vec<TreeLayer>,
     depth: usize,
     ply: usize,
     alpha: i32,
     beta: i32,
     ttable: &mut Transpositiontable,
     halfcount: usize,
-    killertable: &mut Vec<Vec<u16>>,
     historytable: &mut Vec<Vec<Vec<usize>>>,
-    pruneflags: &mut (u8, bool),
-    exmove: u16,
     stopped: &mut bool,
     starttime: Instant,
     timelimit: Duration,
 ) -> i32 {
     *count += 1;
     //println!("Alpha: {} Beta: {}", alpha, beta);
-    let key = positionstack[ply].key;
+
+    let key = treestack[ply].board.key;
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
-    } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
+    }
+    if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
         && ply != 0
-        && pruneflags.0 == 0
-        && is_draw(positionstack, ply, halfcount)
+        && treestack[ply].nullmoves == 0
+        && is_draw(treestack, ply, halfcount)
     {
         //println!("1");
         return piececonstants::draw_score(ply);
@@ -291,7 +305,7 @@ pub fn negamax(
                     3 => score <= alpha2,
                     _ => false,
                 }
-            } & !pruneflags.1
+            } & !treestack[ply].PV
             {
                 return score;
             }
@@ -299,20 +313,17 @@ pub fn negamax(
 
         None => {}
     }
-    pruneflags.1 = false;
+    //pruneflags.1 = false;
 
     if depth == 0 || *stopped {
         let score = quiescent(
-            positionstack,
+            treestack,
             count,
-            movestack,
-            scores,
             ply,
             0,
             alpha,
             beta,
             ttable,
-            killertable,
             historytable,
             stopped,
             starttime,
@@ -325,39 +336,34 @@ pub fn negamax(
     }
 
     // Null Move Pruning
-    let side = positionstack[ply].side.unwrap() as usize;
-    let kingattacked = positionstack[ply].is_king_attacked();
+    let side = treestack[ply].board.side.unwrap() as usize;
+    treestack[ply].in_check = treestack[ply].board.is_king_attacked();
     // if pruning allowed in search (hasnt happened yet and not pV)& side has more than just pawns & depth is high enough for reduction & king is not in check
-    if pruneflags.0 < 2
+    if treestack[ply].nullmoves < 2
         && depth >= 3
-        && (positionstack[ply].occupancies[side]
-            != (positionstack[ply].pieceboards[side * 6]
-                | positionstack[ply].pieceboards[side * 6 + 5]))
-        && !kingattacked
+        && (treestack[ply].board.occupancies[side]
+            != (treestack[ply].board.pieceboards[side * 6]
+                | treestack[ply].board.pieceboards[side * 6 + 5]))
+        && !treestack[ply].in_check
     {
-        positionstack[ply + 1] = positionstack[ply].clone();
-        pruneflags.0 += 1;
-        null_move(&mut positionstack[ply + 1]); // do nothing
+        treestack[ply + 1].board = treestack[ply].board.clone();
+        treestack[ply + 1].nullmoves = treestack[ply].nullmoves + 1;
+        null_move(&mut treestack[ply + 1].board); // do nothing
         let score = -zerowindow(
-            positionstack,
+            treestack,
             count,
-            movestack,
-            scores,
             depth.saturating_sub(4),
             ply + 1,
             -alpha,
             ttable,
             halfcount + 1,
-            killertable,
             historytable,
-            pruneflags,
-            0,
             stopped,
             starttime,
             timelimit,
         );
 
-        pruneflags.0 -= 1;
+        //pruneflags.0 -= 1;
 
         if score >= cut {
             let lb = ((beta + 1) & !3) + 1;
@@ -370,11 +376,11 @@ pub fn negamax(
 
     // sort moves
     // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
+    let tmove = ttable.read_move(key);
 
     let mut movephase: usize = match tmove {
         Some(m) => {
-            movestack[ply][0] = m;
+            treestack[ply].moves[0] = m;
             0
         }
         None => 1,
@@ -385,7 +391,7 @@ pub fn negamax(
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
 
-    let side = positionstack[ply].side.unwrap() as usize;
+    let side = treestack[ply].board.side.unwrap() as usize;
 
     //create a min heap for moves
 
@@ -402,16 +408,16 @@ pub fn negamax(
         // extract next move from heap
 
         let m = moves::pick_move(
-            &mut positionstack[ply],
-            &mut movestack[ply],
-            &mut scores[ply],
+            &mut treestack[ply].board,
+            &mut treestack[ply].moves,
+            &mut treestack[ply].scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &killertable[ply],
+            &treestack[ply].killers,
             &historytable[side],
             true,
             tmove,
@@ -420,7 +426,7 @@ pub fn negamax(
         if m == 0 {
             break;
         }
-        if m == exmove {
+        if m == treestack[ply].exmove {
             continue;
         }
         if j == 0 {
@@ -431,29 +437,29 @@ pub fn negamax(
         Need to mess with the criteria for this bullshit
          */
         // for tmove with no excluded move, sufficient depth, and lower bound ttable
-        if m == tmove.unwrap_or(0) && exmove == 0 && depth >= 4 && tscore.unwrap_or(0) & 3 == 1 {
+        if m == tmove.unwrap_or(0)
+            && treestack[ply].exmove == 0
+            && depth >= 4
+            && tscore.unwrap_or(0) & 3 == 1
+        {
             let singularbeta = tscore.unwrap() - 1 - 4 * d as i32;
             let singled = d / 2;
-            let singleex = m;
+            treestack[ply].exmove = m;
             //positionstack[ply + 1] = positionstack[ply].clone();
             let score = zerowindow(
-                positionstack,
+                treestack,
                 count,
-                movestack,
-                scores,
                 singled,
                 ply,
                 singularbeta,
                 ttable,
                 halfcount,
-                killertable,
                 historytable,
-                pruneflags,
-                singleex,
                 stopped,
                 starttime,
                 timelimit,
             );
+            treestack[ply].exmove = 0;
             if score < singularbeta {
                 d += 1;
             } else if singularbeta >= beta {
@@ -463,14 +469,14 @@ pub fn negamax(
 
         //println!("{:?}", &scores[0..index]);
 
-        positionstack[ply + 1] = positionstack[ply].clone();
+        treestack[ply + 1].board = treestack[ply].board.clone();
         let halfcount2 = match m & 61440 {
             0 => halfcount + 1,
             _ => 0,
         };
         //move resets halfmove clock, some kind of special move
 
-        make_move(&mut positionstack[ply + 1], &m);
+        make_move(&mut treestack[ply + 1].board, &m);
         //print_bitboard(positionstack[ply + 1].key);
         /*let op_checked = positionstack[ply + 1].is_king_attacked();
         // Check Extensions
@@ -480,59 +486,44 @@ pub fn negamax(
         let mut score;
         if j == 0 {
             score = -negamax(
-                positionstack,
                 count,
-                movestack,
-                scores,
+                treestack,
                 d - 1,
                 ply + 1,
                 -beta,
                 -alpha2,
                 ttable,
                 halfcount2,
-                killertable,
                 historytable,
-                pruneflags,
-                0,
                 stopped,
                 starttime,
                 timelimit,
             );
         } else {
             score = -zerowindow(
-                positionstack,
+                treestack,
                 count,
-                movestack,
-                scores,
                 d - 1,
                 ply + 1,
                 -alpha2,
                 ttable,
                 halfcount2,
-                killertable,
                 historytable,
-                pruneflags,
-                0,
                 stopped,
                 starttime,
                 timelimit,
             );
             if score > alpha2 && score < cut {
                 score = -negamax(
-                    positionstack,
                     count,
-                    movestack,
-                    scores,
+                    treestack,
                     d - 1,
                     ply + 1,
                     -beta,
                     -alpha2,
                     ttable,
                     halfcount2,
-                    killertable,
                     historytable,
-                    pruneflags,
-                    0,
                     stopped,
                     starttime,
                     timelimit,
@@ -558,12 +549,12 @@ pub fn negamax(
 
                 alpha2 = beta;
                 //ttable.set_value(key, m, depth, lb);
-                if m & 16384 == 0 && !positionstack[ply + 1].is_king_attacked() {
+                if m & 16384 == 0 && !treestack[ply + 1].in_check {
                     // noncapture moves
-                    killertable[ply][1] = killertable[ply][0]; // there could be some borrow bullshit happeneing here
-                    killertable[ply][0] = m.clone();
-                    historytable[positionstack[ply].side.unwrap() as usize]
-                        [m.get_initial() as usize][m.get_final() as usize] += depth * depth;
+                    treestack[ply].killers[1] = treestack[ply].killers[0]; // there could be some borrow bullshit happeneing here
+                    treestack[ply].killers[0] = m.clone();
+                    historytable[side][m.get_initial() as usize][m.get_final() as usize] +=
+                        depth * depth;
                 }
                 break;
             }
@@ -572,7 +563,7 @@ pub fn negamax(
     }
 
     if j == 0 {
-        if kingattacked {
+        if treestack[ply].in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);
@@ -601,16 +592,15 @@ pub fn negamax(
 
 #[inline]
 pub fn quiescent(
-    positionstack: &mut Vec<Board>,
+    treestack: &mut Vec<TreeLayer>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+
     ply: usize,
     qply: usize,
     alpha: i32,
     beta: i32,
     ttable: &mut Transpositiontable,
-    killertable: &mut Vec<Vec<u16>>,
+
     historytable: &mut Vec<Vec<Vec<usize>>>,
     stopped: &mut bool,
     starttime: Instant,
@@ -618,7 +608,8 @@ pub fn quiescent(
 ) -> i32 {
     *count += 1;
     //println!("Alpha: {} Beta: {}", alpha, beta);
-    let key = positionstack[ply].key;
+
+    let key = treestack[ply].board.key;
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
@@ -638,11 +629,11 @@ pub fn quiescent(
 
         None => {}
     }*/
-    let in_check = positionstack[ply].is_king_attacked();
-    let eval = positionstack[ply].evaluate(ply);
+    treestack[ply].in_check = treestack[ply].board.is_king_attacked();
+    let eval = treestack[ply].board.evaluate(ply);
     let cut = (beta + 1) & !3; //IBV tomfoolery
     let mut alpha2 = (alpha + 1) & !3;
-    if eval >= cut && (!in_check || qply <= 0) {
+    if eval >= cut && (treestack[ply].in_check || qply <= 0) {
         return cut + 1;
     }
     let big_delta = 3600; // queen value, ignore promotion moves for now && !positionstack[ply].is_king_attacked()
@@ -655,12 +646,12 @@ pub fn quiescent(
     alpha2 = if eval > alpha2 { eval } else { alpha2 };
 
     // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
+    let tmove = ttable.read_move(key);
 
     let mut movephase: usize = match tmove {
         Some(m) => {
             if m.get_extra() & 4 != 0 {
-                movestack[ply][0] = m;
+                treestack[ply].moves[0] = m;
                 0
             } else {
                 1
@@ -672,7 +663,7 @@ pub fn quiescent(
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
 
-    let side = positionstack[ply].side.unwrap() as usize;
+    let side = treestack[ply].board.side.unwrap() as usize;
 
     //create a min heap for moves
 
@@ -686,18 +677,18 @@ pub fn quiescent(
 
     loop {
         let m = moves::pick_move(
-            &mut positionstack[ply],
-            &mut movestack[ply],
-            &mut scores[ply],
+            board,
+            &mut layer.moves,
+            &mut layer.scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &killertable[ply],
+            &layer.killers,
             &historytable[side],
-            in_check && (qply <= 0),
+            layer.in_check && (qply <= 0),
             tmove,
         );
 
@@ -709,23 +700,20 @@ pub fn quiescent(
         }*/
         j += 1;
 
-        positionstack[ply + 1] = positionstack[ply].clone();
+        treestack[ply + 1].board = treestack[ply].clone();
 
-        make_move(&mut positionstack[ply + 1], &m);
+        make_move(&mut treestack[ply + 1].board, &m);
 
         //let key2 = board.key;
 
         let score = -quiescent(
-            positionstack,
+            treestack,
             count,
-            movestack,
-            scores,
             ply + 1,
             qply + 1,
             -beta,
             -alpha2,
             ttable,
-            killertable,
             historytable,
             stopped,
             starttime,
@@ -743,8 +731,11 @@ pub fn quiescent(
             alpha2 = score;
         }
     }
-    if j == 0 && ((in_check && qply <= 0) || !movegen::has_quiets(&mut positionstack[ply])) {
-        if in_check {
+    if j == 0
+        && ((treestack[ply].in_check && qply <= 0)
+            || !movegen::has_quiets(&mut treestack[ply].board))
+    {
+        if treestack[ply].in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             return score;
         } else {
@@ -768,20 +759,18 @@ pub fn quiescent(
 //#[inline]
 pub fn zerowindow(
     // TODO: some shit is fucked up here
-    positionstack: &mut Vec<Board>,
+    treestack: &mut Vec<TreeLayer>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+
     depth: usize,
     ply: usize,
     beta: i32,
     ttable: &mut Transpositiontable,
 
     halfcount: usize,
-    killertable: &mut Vec<Vec<u16>>,
+
     historytable: &mut Vec<Vec<Vec<usize>>>,
-    pruneflags: &mut (u8, bool),
-    exmove: u16,
+
     stopped: &mut bool,
     starttime: Instant,
     timelimit: Duration,
@@ -791,13 +780,14 @@ pub fn zerowindow(
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
-
-    let key = positionstack[ply].key;
+    let layer = &mut treestack[ply];
+    let board = &mut layer.board;
+    let key = board.key;
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
     } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
-        && pruneflags.0 == 0
-        && is_draw(positionstack, ply, halfcount)
+        && layer.nullmoves == 0
+        && is_draw(treestack, ply, halfcount)
     {
         //println!("3");
         return piececonstants::draw_score(ply);
@@ -805,14 +795,14 @@ pub fn zerowindow(
     let tscore = ttable.read_value(key, depth);
     match tscore {
         Some(score) => {
-            if exmove == 0 && {
+            if layer.exmove == 0 && {
                 match score & 3 {
                     0 => true,
                     1 => score >= beta,
                     3 => score <= beta - 4,
                     _ => false,
                 }
-            } & !pruneflags.1
+            } & !layer.PV
             {
                 return score;
             }
@@ -823,16 +813,13 @@ pub fn zerowindow(
 
     if depth == 0 {
         let score = quiescent(
-            positionstack,
+            treestack,
             count,
-            movestack,
-            scores,
             ply,
             0,
             beta - 4,
             beta,
             ttable,
-            killertable,
             historytable,
             stopped,
             starttime,
@@ -843,40 +830,35 @@ pub fn zerowindow(
         return score;
     }
     let mut cut = (beta + 1) & !3; //IBV tomfoolery 199492
-    let side = positionstack[ply].side.unwrap() as usize;
-    let kingattacked = positionstack[ply].is_king_attacked();
+    let side = board.side.unwrap() as usize;
+    layer.in_check = board.is_king_attacked();
 
     // if pruning allowed in search (hasnt happened yet and not pV)& side has more than just pawns & depth is high enough for reduction & king is not in check
-    if pruneflags.0 < 2
-        && exmove == 0
+    if layer.nullmoves < 2
+        && layer.exmove == 0
         && depth >= 3
-        && (positionstack[ply].occupancies[side]
-            != (positionstack[ply].pieceboards[side * 6]
-                | positionstack[ply].pieceboards[side * 6 + 5]))
-        && !kingattacked
+        && (board.occupancies[side]
+            != (board.pieceboards[side * 6] | board.pieceboards[side * 6 + 5]))
+        && !layer.in_check
     {
-        positionstack[ply + 1] = positionstack[ply].clone();
-        pruneflags.0 += 1;
-        null_move(&mut positionstack[ply + 1]); // do nothing
+        let next = &mut treestack[ply + 1];
+        next.board = board.clone();
+        next.nullmoves = layer.nullmoves + 1;
+        null_move(&mut next.board); // do nothing
         let score = -zerowindow(
-            positionstack,
+            treestack,
             count,
-            movestack,
-            scores,
             depth.saturating_sub(4),
             ply + 1,
             4 - beta,
             ttable,
             halfcount,
-            killertable,
             historytable,
-            pruneflags,
-            0,
             stopped,
             starttime,
             timelimit,
         );
-        pruneflags.0 -= 1;
+
         if score >= cut {
             //let lb = ((beta + 1) & !3) + 1;
             //ttable.set_value(key, 0, depth, lb);
@@ -889,11 +871,11 @@ pub fn zerowindow(
     // sort moves
     //println!("{:?}   {}", movestack[ply], index);
     // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
+    let tmove = ttable.read_move(key);
 
     let mut movephase: usize = match tmove {
         Some(m) => {
-            movestack[ply][0] = m;
+            layer.moves[0] = m;
             0
         }
         None => {
@@ -924,16 +906,16 @@ pub fn zerowindow(
 
     loop {
         let m = moves::pick_move(
-            &mut positionstack[ply],
-            &mut movestack[ply],
-            &mut scores[ply],
+            board,
+            &mut layer.moves,
+            &mut layer.scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &killertable[ply],
+            &layer.killers,
             &historytable[side],
             true,
             tmove,
@@ -942,7 +924,7 @@ pub fn zerowindow(
         if m == 0 {
             break;
         }
-        if m == exmove {
+        if m == layer.exmove {
             continue;
         }
         j += 1;
@@ -951,70 +933,67 @@ pub fn zerowindow(
         Need to mess with the criteria for this bullshit
          */
         // for tmove with no excluded move, suwfficient depth, and lower bound ttable
-        if m == tmove.unwrap_or(0) && exmove == 0 && depth >= 4 && tscore.unwrap_or(0) & 3 == 1 {
+        if m == tmove.unwrap_or(0)
+            && layer.exmove == 0
+            && depth >= 4
+            && tscore.unwrap_or(0) & 3 == 1
+        {
             let singularbeta = tscore.unwrap() - 1 - 4 * d as i32;
             let singled = d / 2;
-            let singleex = m;
+
             //positionstack[ply + 1] = positionstack[ply].clone();
+            layer.exmove = m;
             let score = zerowindow(
-                positionstack,
+                treestack,
                 count,
-                movestack,
-                scores,
                 singled,
                 ply,
                 singularbeta,
                 ttable,
                 halfcount + 1,
-                killertable,
                 historytable,
-                pruneflags,
-                singleex,
                 stopped,
                 starttime,
                 timelimit,
             );
+            layer.exmove = 0;
             if score < singularbeta {
                 d += 1;
             } else if singularbeta >= beta {
                 return singularbeta;
             }
         }
-
-        positionstack[ply + 1] = positionstack[ply].clone();
+        let next = &mut treestack[ply + 1];
+        next.board = board.clone();
         let halfcount2 = match m & 61440 {
             0 => halfcount + 1,
             _ => 0,
         };
 
         //println!("{}", movestack[ply][i].to_uci());
-        make_move(&mut positionstack[ply + 1], &m);
+        make_move(&mut next.board, &m);
+        next.in_check = next.board.is_king_attacked();
         /*let op_checked = positionstack[ply + 1].is_king_attacked();
         // Check Extensions
         if op_checked {
             d += 1;
         } */
         let mut score;
-        if d >= 2 && !kingattacked && m & 49152 == 0 && !positionstack[ply + 1].is_king_attacked() {
+        if d >= 2 && !layer.in_check && m & 49152 == 0 && !next.in_check {
             let r = (((d as f64).log2() * (j as f64).log2() * piececonstants::LMRLEVEL).floor())
                 .min(d as f64 - 0.)
                 .max(1.) as usize;
             //println!("{}", r);
             //println!("{} {} {}", d, i, r);
             score = -zerowindow(
-                positionstack,
+                treestack,
                 count,
-                movestack,
-                scores,
                 d - r,
                 ply + 1,
                 4 - beta,
                 ttable,
-                halfcount2,
-                killertable,
+                halfcount + 1,
                 historytable,
-                pruneflags,
-                0,
                 stopped,
                 starttime,
                 timelimit,
@@ -1022,19 +1001,14 @@ pub fn zerowindow(
             if score > cut - 4 && score < cut {
                 //CHECK THIS
                 score = -zerowindow(
-                    positionstack,
+                    treestack,
                     count,
-                    movestack,
-                    scores,
                     d - 1,
                     ply + 1,
                     4 - beta,
                     ttable,
-                    halfcount2,
-                    killertable,
+                    halfcount + 1,
                     historytable,
-                    pruneflags,
-                    0,
                     stopped,
                     starttime,
                     timelimit,
@@ -1042,19 +1016,14 @@ pub fn zerowindow(
             }
         } else {
             score = -zerowindow(
-                positionstack,
+                treestack,
                 count,
-                movestack,
-                scores,
                 d - 1,
                 ply + 1,
                 4 - beta,
                 ttable,
-                halfcount2,
-                killertable,
+                halfcount + 1,
                 historytable,
-                pruneflags,
-                0,
                 stopped,
                 starttime,
                 timelimit,
@@ -1076,19 +1045,19 @@ pub fn zerowindow(
             cut = ((beta + 1) & !3) + 1;
             bestmove = m;
 
-            if m & 16384 == 0 && !positionstack[ply + 1].is_king_attacked() {
+            if m & 16384 == 0 && !next.in_check {
                 // noncapture moves
-                killertable[ply][1] = killertable[ply][0]; // there could be some borrow bullshit happeneing here
-                killertable[ply][0] = m.clone();
-                historytable[positionstack[ply].side.unwrap() as usize]
-                    [m.get_initial() as usize][m.get_final() as usize] += depth * depth;
+                layer.killers[1] = layer.killers[0]; // there could be some borrow bullshit happeneing here
+                layer.killers[0] = m.clone();
+                historytable[board.side.unwrap() as usize][m.get_initial() as usize]
+                    [m.get_final() as usize] += depth * depth;
             }
             //ttable.set_value(positionstack[ply].key, m, depth, lb);
             break;
         }
     }
     if j == 0 {
-        if kingattacked {
+        if layer.in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);

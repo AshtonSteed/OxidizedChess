@@ -4,6 +4,7 @@ use crate::{
     movegen,
     moves::{self, MoveStuff},
     piececonstants::{self, draw_score},
+    search::TreeLayer,
 };
 
 #[derive(Copy, Clone)]
@@ -655,7 +656,7 @@ impl BitBoard for u64 {
     }
 }
 
-pub fn is_draw(positionstack: &[Board], ply: usize, halfcount: usize) -> bool {
+pub fn is_draw(layers: &[TreeLayer], ply: usize, halfcount: usize) -> bool {
     // 50 move rule
     if halfcount >= 50 {
         true;
@@ -663,10 +664,10 @@ pub fn is_draw(positionstack: &[Board], ply: usize, halfcount: usize) -> bool {
 
     // Check for double repitition in search
     let depth = ply.min(halfcount);
-    let now = positionstack[ply].key;
+    let now = layers[ply].board.key;
     //let mut n = 0;
     for i in ply - depth..ply {
-        if positionstack[i].key == now {
+        if layers[i].board.key == now {
             return true;
         }
     }

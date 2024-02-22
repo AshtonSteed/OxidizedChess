@@ -38,7 +38,6 @@ const NOTABFILE: u64 = 18229723555195321596;*/
 fn main() {
     // TODO: figure out how to refine values, consider aspiration windows, reconsider draw stuff again
     // add incremental time controls
-    // Might be an issue where a pawn can attack and capture a king
 
     uci_loop();
 
