@@ -116,6 +116,16 @@ pub struct TreeLayer {
     PV: bool,
     in_check: bool,
 }
+
+fn now_and_next<T>(slc: &mut [T], a: usize, b: usize) -> (&mut T, &mut T) {
+    // safe because a, b are in bounds and distinct
+    unsafe {
+        let ar = &mut *(slc.get_unchecked_mut(a) as *mut _);
+        let br = &mut *(slc.get_unchecked_mut(b) as *mut _);
+        (ar, br)
+    }
+}
+
 pub fn search_position(
     board: &mut Board,
     maxdepth: usize,
@@ -263,7 +273,7 @@ pub fn search_position(
 // puneflags (null move count, PV search)
 pub fn negamax(
     count: &mut usize,
-    treestack: &mut Vec<TreeLayer>,
+    treestack: &mut [TreeLayer],
     depth: usize,
     ply: usize,
     alpha: i32,
@@ -278,22 +288,29 @@ pub fn negamax(
     *count += 1;
     //println!("Alpha: {} Beta: {}", alpha, beta);
 
-    let key = treestack[ply].board.key;
+    let key = treestack[0].board.key;
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
     }
+
     if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
         && ply != 0
-        && treestack[ply].nullmoves == 0
+        && treestack[0].nullmoves == 0
         && is_draw(treestack, ply, halfcount)
+        && false
     {
         //println!("1");
         return piececonstants::draw_score(ply);
     }
-    let cut = (beta + 1) & !3; //IBV tomfoolery
+    //println!("Full: {}", treestack.as_ptr() as usize);
+    let (now, next) = treestack.split_at_mut(1);
+    //println!("Start: {}", now.as_ptr() as usize);
+    let position = &mut now[0];
+
+    let cut = (beta + 1) & !3; //IBV tomfoole&mutry
     let mut alpha2 = (alpha + 1) & !3; // IBV tomfoolery again?
     let tscore = ttable.read_value(key, depth);
     match tscore {
@@ -305,7 +322,7 @@ pub fn negamax(
                     3 => score <= alpha2,
                     _ => false,
                 }
-            } & !treestack[ply].PV
+            } & !position.PV
             {
                 return score;
             }
@@ -336,21 +353,20 @@ pub fn negamax(
     }
 
     // Null Move Pruning
-    let side = treestack[ply].board.side.unwrap() as usize;
-    treestack[ply].in_check = treestack[ply].board.is_king_attacked();
+    let side = position.board.side.unwrap() as usize;
+    position.in_check = position.board.is_king_attacked();
     // if pruning allowed in search (hasnt happened yet and not pV)& side has more than just pawns & depth is high enough for reduction & king is not in check
-    if treestack[ply].nullmoves < 2
+    if position.nullmoves < 2
         && depth >= 3
-        && (treestack[ply].board.occupancies[side]
-            != (treestack[ply].board.pieceboards[side * 6]
-                | treestack[ply].board.pieceboards[side * 6 + 5]))
-        && !treestack[ply].in_check
+        && (position.board.occupancies[side]
+            != (position.board.pieceboards[side * 6] | position.board.pieceboards[side * 6 + 5]))
+        && !position.in_check
     {
-        treestack[ply + 1].board = treestack[ply].board.clone();
-        treestack[ply + 1].nullmoves = treestack[ply].nullmoves + 1;
-        null_move(&mut treestack[ply + 1].board); // do nothing
+        next[0].board = position.board.clone();
+        next[0].nullmoves = position.nullmoves + 1;
+        null_move(&mut next[0].board); // do nothing
         let score = -zerowindow(
-            treestack,
+            next,
             count,
             depth.saturating_sub(4),
             ply + 1,
@@ -380,7 +396,7 @@ pub fn negamax(
 
     let mut movephase: usize = match tmove {
         Some(m) => {
-            treestack[ply].moves[0] = m;
+            position.moves[0] = m;
             0
         }
         None => 1,
@@ -391,7 +407,7 @@ pub fn negamax(
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
 
-    let side = treestack[ply].board.side.unwrap() as usize;
+    let side = position.board.side.unwrap() as usize;
 
     //create a min heap for moves
 
@@ -408,16 +424,16 @@ pub fn negamax(
         // extract next move from heap
 
         let m = moves::pick_move(
-            &mut treestack[ply].board,
-            &mut treestack[ply].moves,
-            &mut treestack[ply].scores,
+            &mut position.board,
+            &mut position.moves,
+            &mut position.scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &treestack[ply].killers,
+            &position.killers,
             &historytable[side],
             true,
             tmove,
@@ -426,7 +442,7 @@ pub fn negamax(
         if m == 0 {
             break;
         }
-        if m == treestack[ply].exmove {
+        if m == position.exmove {
             continue;
         }
         if j == 0 {
@@ -438,16 +454,17 @@ pub fn negamax(
          */
         // for tmove with no excluded move, sufficient depth, and lower bound ttable
         if m == tmove.unwrap_or(0)
-            && treestack[ply].exmove == 0
+            && position.exmove == 0
             && depth >= 4
             && tscore.unwrap_or(0) & 3 == 1
+            && false
         {
             let singularbeta = tscore.unwrap() - 1 - 4 * d as i32;
             let singled = d / 2;
-            treestack[ply].exmove = m;
+            position.exmove = m;
             //positionstack[ply + 1] = positionstack[ply].clone();
             let score = zerowindow(
-                treestack,
+                next,
                 count,
                 singled,
                 ply,
@@ -459,7 +476,7 @@ pub fn negamax(
                 starttime,
                 timelimit,
             );
-            treestack[ply].exmove = 0;
+            position.exmove = 0;
             if score < singularbeta {
                 d += 1;
             } else if singularbeta >= beta {
@@ -469,14 +486,16 @@ pub fn negamax(
 
         //println!("{:?}", &scores[0..index]);
 
-        treestack[ply + 1].board = treestack[ply].board.clone();
+        next[0].board = position.board.clone();
+
         let halfcount2 = match m & 61440 {
             0 => halfcount + 1,
             _ => 0,
         };
         //move resets halfmove clock, some kind of special move
 
-        make_move(&mut treestack[ply + 1].board, &m);
+        make_move(&mut next[0].board, &m);
+        //next[0].board.print_board();
         //print_bitboard(positionstack[ply + 1].key);
         /*let op_checked = positionstack[ply + 1].is_king_attacked();
         // Check Extensions
@@ -487,7 +506,7 @@ pub fn negamax(
         if j == 0 {
             score = -negamax(
                 count,
-                treestack,
+                next,
                 d - 1,
                 ply + 1,
                 -beta,
@@ -501,7 +520,7 @@ pub fn negamax(
             );
         } else {
             score = -zerowindow(
-                treestack,
+                next,
                 count,
                 d - 1,
                 ply + 1,
@@ -516,7 +535,7 @@ pub fn negamax(
             if score > alpha2 && score < cut {
                 score = -negamax(
                     count,
-                    treestack,
+                    next,
                     d - 1,
                     ply + 1,
                     -beta,
@@ -549,10 +568,10 @@ pub fn negamax(
 
                 alpha2 = beta;
                 //ttable.set_value(key, m, depth, lb);
-                if m & 16384 == 0 && !treestack[ply + 1].in_check {
+                if m & 16384 == 0 && !next[0].in_check {
                     // noncapture moves
-                    treestack[ply].killers[1] = treestack[ply].killers[0]; // there could be some borrow bullshit happeneing here
-                    treestack[ply].killers[0] = m.clone();
+                    position.killers[1] = position.killers[0]; // there could be some borrow bullshit happeneing here
+                    position.killers[0] = m.clone();
                     historytable[side][m.get_initial() as usize][m.get_final() as usize] +=
                         depth * depth;
                 }
@@ -563,7 +582,7 @@ pub fn negamax(
     }
 
     if j == 0 {
-        if treestack[ply].in_check {
+        if position.in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);
@@ -592,7 +611,7 @@ pub fn negamax(
 
 #[inline]
 pub fn quiescent(
-    treestack: &mut Vec<TreeLayer>,
+    treestack: &mut [TreeLayer],
     count: &mut usize,
 
     ply: usize,
@@ -609,7 +628,7 @@ pub fn quiescent(
     *count += 1;
     //println!("Alpha: {} Beta: {}", alpha, beta);
 
-    let key = treestack[ply].board.key;
+    let key = treestack[0].board.key;
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
@@ -629,11 +648,13 @@ pub fn quiescent(
 
         None => {}
     }*/
-    treestack[ply].in_check = treestack[ply].board.is_king_attacked();
-    let eval = treestack[ply].board.evaluate(ply);
+    let (now, next) = treestack.split_at_mut(1);
+    let position = &mut now[0];
+    position.in_check = position.board.is_king_attacked();
+    let eval = position.board.evaluate(ply);
     let cut = (beta + 1) & !3; //IBV tomfoolery
     let mut alpha2 = (alpha + 1) & !3;
-    if eval >= cut && (treestack[ply].in_check || qply <= 0) {
+    if eval >= cut && (position.in_check || qply <= 0) {
         return cut + 1;
     }
     let big_delta = 3600; // queen value, ignore promotion moves for now && !positionstack[ply].is_king_attacked()
@@ -651,7 +672,7 @@ pub fn quiescent(
     let mut movephase: usize = match tmove {
         Some(m) => {
             if m.get_extra() & 4 != 0 {
-                treestack[ply].moves[0] = m;
+                position.moves[0] = m;
                 0
             } else {
                 1
@@ -663,7 +684,7 @@ pub fn quiescent(
     //movestack[ply][0..index].sort_unstable_by_key(|m| scores[4095 & *m as usize]);
     //println!("{:?}    {}", movestack[ply], index);
 
-    let side = treestack[ply].board.side.unwrap() as usize;
+    let side = position.board.side.unwrap() as usize;
 
     //create a min heap for moves
 
@@ -677,20 +698,21 @@ pub fn quiescent(
 
     loop {
         let m = moves::pick_move(
-            board,
-            &mut layer.moves,
-            &mut layer.scores,
+            &mut position.board,
+            &mut position.moves,
+            &mut position.scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &layer.killers,
+            &position.killers,
             &historytable[side],
-            layer.in_check && (qply <= 0),
+            position.in_check && (qply <= 0),
             tmove,
         );
+        //let m = 0;
 
         if m == 0 {
             break;
@@ -700,14 +722,14 @@ pub fn quiescent(
         }*/
         j += 1;
 
-        treestack[ply + 1].board = treestack[ply].clone();
+        next[0].board = position.board.clone();
 
-        make_move(&mut treestack[ply + 1].board, &m);
+        make_move(&mut next[0].board, &m);
 
         //let key2 = board.key;
 
         let score = -quiescent(
-            treestack,
+            next,
             count,
             ply + 1,
             qply + 1,
@@ -732,10 +754,9 @@ pub fn quiescent(
         }
     }
     if j == 0
-        && ((treestack[ply].in_check && qply <= 0)
-            || !movegen::has_quiets(&mut treestack[ply].board))
+        && ((treestack[0].in_check && qply <= 0) || !movegen::has_quiets(&mut treestack[0].board))
     {
-        if treestack[ply].in_check {
+        if treestack[0].in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             return score;
         } else {
@@ -759,7 +780,7 @@ pub fn quiescent(
 //#[inline]
 pub fn zerowindow(
     // TODO: some shit is fucked up here
-    treestack: &mut Vec<TreeLayer>,
+    treestack: &mut [TreeLayer],
     count: &mut usize,
 
     depth: usize,
@@ -780,14 +801,15 @@ pub fn zerowindow(
     if (*count & 4095) == 0 {
         communicate(stopped, starttime, timelimit);
     }
-    let layer = &mut treestack[ply];
-    let board = &mut layer.board;
-    let key = board.key;
+
+    let key = treestack[0].board.key;
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
     } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
-        && layer.nullmoves == 0
+        && treestack[0].nullmoves == 0
         && is_draw(treestack, ply, halfcount)
+        && false
+    // TODO
     {
         //println!("3");
         return piececonstants::draw_score(ply);
@@ -795,14 +817,14 @@ pub fn zerowindow(
     let tscore = ttable.read_value(key, depth);
     match tscore {
         Some(score) => {
-            if layer.exmove == 0 && {
+            if treestack[0].exmove == 0 && {
                 match score & 3 {
                     0 => true,
                     1 => score >= beta,
                     3 => score <= beta - 4,
                     _ => false,
                 }
-            } & !layer.PV
+            } & !treestack[0].PV
             {
                 return score;
             }
@@ -829,24 +851,26 @@ pub fn zerowindow(
         //(key, 0, 0, score + 1);
         return score;
     }
+    let (now, next) = treestack.split_at_mut(1);
+    let position = &mut now[0];
+
     let mut cut = (beta + 1) & !3; //IBV tomfoolery 199492
-    let side = board.side.unwrap() as usize;
-    layer.in_check = board.is_king_attacked();
+    let side = position.board.side.unwrap() as usize;
+    position.in_check = position.board.is_king_attacked();
 
     // if pruning allowed in search (hasnt happened yet and not pV)& side has more than just pawns & depth is high enough for reduction & king is not in check
-    if layer.nullmoves < 2
-        && layer.exmove == 0
+    if position.nullmoves < 2
+        && position.exmove == 0
         && depth >= 3
-        && (board.occupancies[side]
-            != (board.pieceboards[side * 6] | board.pieceboards[side * 6 + 5]))
-        && !layer.in_check
+        && (position.board.occupancies[side]
+            != (position.board.pieceboards[side * 6] | position.board.pieceboards[side * 6 + 5]))
+        && !position.in_check
     {
-        let next = &mut treestack[ply + 1];
-        next.board = board.clone();
-        next.nullmoves = layer.nullmoves + 1;
-        null_move(&mut next.board); // do nothing
+        next[0].board = position.board.clone();
+        next[0].nullmoves = position.nullmoves + 1;
+        null_move(&mut next[0].board); // do nothing
         let score = -zerowindow(
-            treestack,
+            next,
             count,
             depth.saturating_sub(4),
             ply + 1,
@@ -875,7 +899,7 @@ pub fn zerowindow(
 
     let mut movephase: usize = match tmove {
         Some(m) => {
-            layer.moves[0] = m;
+            position.moves[0] = m;
             0
         }
         None => {
@@ -906,16 +930,16 @@ pub fn zerowindow(
 
     loop {
         let m = moves::pick_move(
-            board,
-            &mut layer.moves,
-            &mut layer.scores,
+            &mut position.board,
+            &mut position.moves,
+            &mut position.scores,
             &mut index,
             &mut totalmoves,
             &mut i,
             &mut movephase,
             &mut badcaps,
             &mut badindex,
-            &layer.killers,
+            &position.killers,
             &historytable[side],
             true,
             tmove,
@@ -924,7 +948,7 @@ pub fn zerowindow(
         if m == 0 {
             break;
         }
-        if m == layer.exmove {
+        if m == position.exmove {
             continue;
         }
         j += 1;
@@ -934,17 +958,18 @@ pub fn zerowindow(
          */
         // for tmove with no excluded move, suwfficient depth, and lower bound ttable
         if m == tmove.unwrap_or(0)
-            && layer.exmove == 0
+            && position.exmove == 0
             && depth >= 4
             && tscore.unwrap_or(0) & 3 == 1
+            && false
         {
             let singularbeta = tscore.unwrap() - 1 - 4 * d as i32;
             let singled = d / 2;
 
             //positionstack[ply + 1] = positionstack[ply].clone();
-            layer.exmove = m;
+            position.exmove = m;
             let score = zerowindow(
-                treestack,
+                next,
                 count,
                 singled,
                 ply,
@@ -956,37 +981,37 @@ pub fn zerowindow(
                 starttime,
                 timelimit,
             );
-            layer.exmove = 0;
+            position.exmove = 0;
             if score < singularbeta {
                 d += 1;
             } else if singularbeta >= beta {
                 return singularbeta;
             }
         }
-        let next = &mut treestack[ply + 1];
-        next.board = board.clone();
+
+        next[0].board = position.board.clone();
         let halfcount2 = match m & 61440 {
             0 => halfcount + 1,
             _ => 0,
         };
 
         //println!("{}", movestack[ply][i].to_uci());
-        make_move(&mut next.board, &m);
-        next.in_check = next.board.is_king_attacked();
+        make_move(&mut next[0].board, &m);
+        next[0].in_check = next[0].board.is_king_attacked();
         /*let op_checked = positionstack[ply + 1].is_king_attacked();
         // Check Extensions
         if op_checked {
             d += 1;
         } */
         let mut score;
-        if d >= 2 && !layer.in_check && m & 49152 == 0 && !next.in_check {
+        if d >= 2 && !position.in_check && m & 49152 == 0 && !next[0].in_check {
             let r = (((d as f64).log2() * (j as f64).log2() * piececonstants::LMRLEVEL).floor())
                 .min(d as f64 - 0.)
                 .max(1.) as usize;
             //println!("{}", r);
             //println!("{} {} {}", d, i, r);
             score = -zerowindow(
-                treestack,
+                next,
                 count,
                 d - r,
                 ply + 1,
@@ -1001,7 +1026,7 @@ pub fn zerowindow(
             if score > cut - 4 && score < cut {
                 //CHECK THIS
                 score = -zerowindow(
-                    treestack,
+                    next,
                     count,
                     d - 1,
                     ply + 1,
@@ -1016,7 +1041,7 @@ pub fn zerowindow(
             }
         } else {
             score = -zerowindow(
-                treestack,
+                next,
                 count,
                 d - 1,
                 ply + 1,
@@ -1045,11 +1070,11 @@ pub fn zerowindow(
             cut = ((beta + 1) & !3) + 1;
             bestmove = m;
 
-            if m & 16384 == 0 && !next.in_check {
+            if m & 16384 == 0 && !next[0].in_check {
                 // noncapture moves
-                layer.killers[1] = layer.killers[0]; // there could be some borrow bullshit happeneing here
-                layer.killers[0] = m.clone();
-                historytable[board.side.unwrap() as usize][m.get_initial() as usize]
+                position.killers[1] = position.killers[0]; // there could be some borrow bullshit happeneing here
+                position.killers[0] = m.clone();
+                historytable[position.board.side.unwrap() as usize][m.get_initial() as usize]
                     [m.get_final() as usize] += depth * depth;
             }
             //ttable.set_value(positionstack[ply].key, m, depth, lb);
@@ -1057,7 +1082,7 @@ pub fn zerowindow(
         }
     }
     if j == 0 {
-        if layer.in_check {
+        if position.in_check {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
             ttable.set_value(key, 0, depth, score);
             ttable.clear_move(key);
