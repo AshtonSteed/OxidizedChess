@@ -267,15 +267,13 @@ impl Board {
         // KvK, KMvK, KBvKB(same color)
         if self.occupancies[2].count_ones() <= 4 {
             let kings = self.pieceboards[5] | self.pieceboards[11];
+            let bn = self.pieceboards[1]
+                | self.pieceboards[2]
+                | self.pieceboards[7]
+                | self.pieceboards[8];
 
-            if self.occupancies[2] == kings
-                || (self.occupancies[2].count_ones() == 3
-                    && (self.occupancies[2]
-                        == kings
-                            | self.pieceboards[1]
-                            | self.pieceboards[2]
-                            | self.pieceboards[7]
-                            | self.pieceboards[8]))
+            // Draws if just kings, if one side has one minor piece, or if there are 2 minor pieces on one side. This is not true, but works for now.
+            if self.occupancies[2] == kings | bn
             /*|| {
                 self.occupancies[0].count_ones() == 2
                     && (self.occupancies[2]
@@ -547,6 +545,9 @@ impl Board {
         //println!("{}", swap);
 
         res == 1
+    }
+    pub fn hash(&self) -> usize {
+        return self.key as usize & (piececonstants::TTABLEMASK as usize);
     }
 }
 

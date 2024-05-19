@@ -227,8 +227,8 @@ pub fn score_moves(
     scores: &mut [i32],
     n: &mut usize,
     board: &engine::Board,
-    killers: &Vec<u16>,
-    history: &Vec<Vec<usize>>,
+    killers: &[u16],
+    history: &[[usize; 64]; 64],
     tmove: Option<Move>,
 ) {
     let mut i = 0;
@@ -309,7 +309,8 @@ fn shift_down(moves: &mut [u16], scores: &mut [i32], start: usize, end: usize) {
 }
 #[inline]
 pub fn build_max_heap(moves: &mut [u16], scores: &mut [i32], size: usize, start: usize) {
-    // Build a min heap.
+    // Build a heap queue.
+    // Could be more efficient to pack the moves and scores together
     for i in (0..size / 2).rev() {
         shift_down(&mut moves[start..], &mut scores[start..], i, size - 1);
     }
@@ -354,8 +355,8 @@ pub fn pick_move(
     movephase: &mut usize,
     badcaptures: &mut usize,
     badcapstart: &mut usize,
-    killers: &Vec<u16>,
-    history: &Vec<Vec<usize>>,
+    killers: &[u16],
+    history: &[[usize; 64]; 64],
     quiets: bool,
     tmove: Option<Move>,
 ) -> Move {

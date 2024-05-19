@@ -45,7 +45,8 @@ fn main() {
     // add incremental time controls
     // Might be an issue where a pawn can attack and capture a king
 
-    //uci_loop();
+    uci_loop();
+    /*
     let mut board = Board::default();
 
     board.parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string());
@@ -97,7 +98,7 @@ fn main() {
     println!(
         "Computing FFT's normally took {} micros.",
         elapsed_time.as_micros()
-    );
+    ); */
 
     /*
     let now = Instant::now();

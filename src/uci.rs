@@ -2,7 +2,7 @@ use crate::engine::Board;
 use crate::movegen::generate_moves;
 use crate::moves::{make_move, MoveStuff};
 use crate::piececonstants;
-use crate::search::{search_position, Transpositiontable};
+use crate::search::{search_position, TableEntry};
 
 use std::io::{self, BufRead};
 use std::time::{Duration, Instant};
@@ -27,7 +27,7 @@ pub fn parse_position(
     board: &mut Board,
 
     halfcount: &mut usize,
-    ttable: &mut Transpositiontable,
+    ttable: &mut Vec<TableEntry>,
 ) {
     *halfcount = 0;
 
@@ -65,17 +65,22 @@ pub fn parse_position(
                 //println!("Move {} is not repeatable", m.to_uci());
                 *halfcount = 0;
             }
-            if ttable.read_move(board.key) == None {
-                ttable.clear_entry(board.key);
+            if ttable[board.hash()].read_move(board.key) == None {
+                ttable[board.hash()].clear_entry();
             }
 
             *halfcount += 1;
         }
         let length = past.len();
         for i in 2..*halfcount {
-            let pos = past[length - i];
+            let pos: u64 = past[length - i];
             if pos != board.key {
-                ttable.set_value(pos, u16::MAX, usize::MAX, piececonstants::CONTEMPT)
+                ttable[pos as usize & (piececonstants::TTABLEMASK as usize)].set_value(
+                    pos,
+                    u16::MAX,
+                    usize::MAX,
+                    piececonstants::CONTEMPT,
+                )
             }
         }
     }
@@ -87,7 +92,7 @@ pub fn parse_position(
 pub fn parse_go(
     input: String,
     board: &mut Board,
-    ttable: &mut Transpositiontable,
+    ttable: &mut Vec<TableEntry>,
 
     halfcount: &mut usize,
 ) {
@@ -134,8 +139,8 @@ pub fn uci_loop() {
         ..Default::default()
     };
 
-    let mut ttable = Transpositiontable::new(); // transpotion table
-                                                //let mut rtable = Repititiontable::new(); // repitiion table
+    let mut ttable = vec![TableEntry::new(); piececonstants::TTABLEMASK + 1]; // transpotion table
+                                                                              //let mut rtable = Repititiontable::new(); // repitiion table
 
     let mut halfclock: usize = 0;
     while let Some(line) = lines.next() {
@@ -153,7 +158,7 @@ pub fn uci_loop() {
                 board = Board {
                     ..Default::default()
                 };
-                ttable = Transpositiontable::new();
+                ttable = vec![TableEntry::new(); piececonstants::TTABLEMASK + 1];
                 //rtable = Repititiontable::new();
 
                 halfclock = 0;

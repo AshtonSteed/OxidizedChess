@@ -7,22 +7,21 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 
-pub struct TTABLEENTRY {
+#[derive(Clone)]
+pub struct TableEntry {
     key: u64,
     bestmove: u16,
     depth: usize,
     score: i32,
-    bound: usize,
 }
-impl TTABLEENTRY {
-    pub fn new() -> TTABLEENTRY {
+impl TableEntry {
+    pub fn new() -> TableEntry {
         //crate::print_bitboard(piececonstants::TTABLESIZE as u64 - 1);
-        TTABLEENTRY {
+        TableEntry {
             key: 0,
             bestmove: 0,
-            depth: 0,
-            score: 0,
-            bound: 0,
+            depth: 1,
+            score: 1,
         }
     }
     #[inline(always)]
@@ -48,7 +47,6 @@ impl TTABLEENTRY {
     }
     #[inline(always)]
     pub fn set_value(&mut self, key: u64, m: u16, depth: usize, score: i32) {
-        let index = key & (piececonstants::TTABLEMASK as u64);
         let exactscore = score & 3 == 0;
 
         //current implementation is just stolen from stockfish on god
@@ -78,137 +76,47 @@ impl TTABLEENTRY {
         self.bestmove = 0;
     }
 
-    pub fn clear_entry(&mut self, key: u64) {
-        *self = TTABLEENTRY::new();
+    pub fn clear_entry(&mut self) {
+        self.key = 0;
+        self.bestmove = 0;
+        self.depth = 1;
+        self.score = 1;
     }
-
-    /*pub fn crude_full(&self) -> u32 {
-        let mut nonzero = 0;
-
-        for i in 0..1000 {
-            if self.0[i] != (0, 0, 1, 1) {
-                nonzero += 1;
-            }
-        }
-        nonzero
-    } needs fixed*/
 }
 
-// TRANSPOSITION TABLE : [full hash, best move, depth, value]
+fn hash(key: u64) -> usize {
+    key as usize & (piececonstants::TTABLEMASK as usize)
+}
+
 // value uses integrated bounds, needs some fancy stuff in negamax but should work good
 // this is annoying me, i need to sort out a way for it to perserve PV.
-pub struct Transpositiontable(Vec<(u64, u16, usize, i32)>);
+fn crude_full(ttable: &Vec<TableEntry>) -> u32 {
+    let mut nonzero = 0;
 
-impl Transpositiontable {
-    pub fn new() -> Transpositiontable {
-        //crate::print_bitboard(piececonstants::TTABLESIZE as u64 - 1);
-        Transpositiontable(vec![(0, 0, 1, 1); piececonstants::TTABLEMASK + 1])
-    }
-    #[inline(always)]
-    fn read_value(&self, key: u64, depth: usize) -> Option<i32> {
-        // TODO: hash problem :(
-        //crate::print_bitboard(key);
-
-        let index = key & (piececonstants::TTABLEMASK as u64);
-        let entry = self.0[index as usize];
-        if key == entry.0 && depth <= entry.2 {
-            return Some(entry.3);
-        } else {
-            //println!("Dtable: {}, Dstate: {}", entry.2, depth);
-            return None;
+    for i in 0..1000 {
+        if ttable[i].key != 0 {
+            nonzero += 1;
         }
     }
-    #[inline(always)]
-    pub fn read_move(&self, key: u64) -> Option<u16> {
-        let index = (key & (piececonstants::TTABLEMASK as u64)) as usize;
-        if self.0[index].0 == key && self.0[index].1.is_valid() {
-            return Some(self.0[index].1);
-        } else {
-            return None;
-        }
-    }
-    #[inline(always)]
-    pub fn set_value(&mut self, key: u64, m: u16, depth: usize, score: i32) {
-        let index = key & (piececonstants::TTABLEMASK as u64);
-        let exactscore = score & 3 == 0;
-
-        let entry = &mut self.0[index as usize];
-        //current implementation is just stolen from stockfish on god
-        if entry.1 == u16::MAX {
-            // max move flags an irreplacable entry, used for repititions
-            return;
-        }
-
-        if key != entry.0 || m != 0 {
-            entry.1 = m
-        }
-        if exactscore || key != entry.0 || depth >= entry.2 {
-            //key == entry.0 && depth >= entry.2) || (key != entry.0)
-            // depth >= entry.2 && ((key == entry.0) || (key != entry.0 && entry.3 & 3 != 0))
-            //(key == entry.0 && depth >= entry.2) || (key != entry.0 && entry.3 & 3 != 0)
-            // || (key != entry.0 && entry.3 & 1 == 0) this should check to see if the node is a pv, in theory doesnt replace
-            // replaces only if depth is greater than current depth. This helps perserve PV, ill see if theres a better way though
-            //println!("collision: {}", entry.0 != key);
-            // m as entry.1?
-            entry.0 = key;
-            entry.2 = depth;
-            entry.3 = score;
-        }
-    }
-
-    fn clear_move(&mut self, key: u64) {
-        let index = key & (piececonstants::TTABLEMASK as u64);
-        let entry = &mut self.0[index as usize];
-        entry.1 = 0;
-    }
-
-    pub fn clear_entry(&mut self, key: u64) {
-        let index = key & (piececonstants::TTABLEMASK as u64);
-        let entry = &mut self.0[index as usize];
-        *entry = (0, 0, 1, 1);
-    }
-
-    pub fn crude_full(&self) -> u32 {
-        let mut nonzero = 0;
-
-        for i in 0..1000 {
-            if self.0[i] != (0, 0, 1, 1) {
-                nonzero += 1;
-            }
-        }
-        nonzero
-    }
-}
-pub struct Repititiontable(Vec<bool>);
-impl Repititiontable {
-    pub fn new() -> Repititiontable {
-        Repititiontable(vec![false; piececonstants::RTABLEMASK + 1])
-    }
-    #[inline(always)]
-    pub fn set_value(&mut self, key: u64, value: bool) -> bool {
-        let index = (key & (piececonstants::RTABLEMASK as u64)) as usize;
-        let output = self.0[index].clone();
-        self.0[index] = value;
-        return output;
-    }
+    nonzero
 }
 
 pub fn search_position(
     board: &mut Board,
     maxdepth: usize,
     timelimit: Duration,
-    ttable: &mut Transpositiontable,
+    ttable: &mut Vec<TableEntry>,
 
     halfcount: usize,
 ) -> u16 {
     let mut positionstack = vec![board.clone(); piececonstants::MAXPLY];
     let mut m = 0;
 
-    let mut killertable = vec![vec![0; 2]; piececonstants::MAXPLY];
-    let mut historytable = vec![vec![vec![0usize; 64]; 64]; 2];
+    let mut killertable: [[u16; 2]; 64] = [[0; 2]; piececonstants::MAXPLY];
+    let mut historytable: [[[usize; 64]; 64]; 2] = [[[0usize; 64]; 64]; 2];
 
-    let mut movestack = vec![vec![0; 256]; piececonstants::MAXPLY];
-    let mut movescores = vec![vec![0i32; 256]; piececonstants::MAXPLY];
+    let mut movestack: [[u16; 256]; 64] = [[0; 256]; piececonstants::MAXPLY];
+    let mut movescores: [[i32; 256]; 64] = [[0i32; 256]; piececonstants::MAXPLY];
     let mut stopped = false;
     let mut pruneflags = (0, true);
     let start = Instant::now();
@@ -240,11 +148,11 @@ pub fn search_position(
         if stopped {
             break;
         }
-        m = match ttable.read_move(board.key) {
+        m = match ttable[board.hash()].read_move(board.key) {
             Some(i) => i,
             None => 0,
         };
-        score = match ttable.read_value(board.key, d) {
+        score = match ttable[board.hash()].read_value(board.key, d) {
             Some(i) => i,
             None => score,
         };
@@ -253,7 +161,7 @@ pub fn search_position(
         let mut boardcopy = board.clone();
         //for i in 0..d
         for i in 0..d {
-            let m2 = &ttable.read_move(boardcopy.key);
+            let m2 = &ttable[boardcopy.hash()].read_move(boardcopy.key);
             //println!("{:?}   {:?}", m2, score);
             match m2 {
                 Some(j) => {
@@ -280,7 +188,7 @@ pub fn search_position(
             println!(
                 "info score mate {} hashfull {} depth {} nodes {} time {} pv {} ",
                 mate.unwrap(),
-                ttable.crude_full(),
+                crude_full(ttable),
                 d,
                 &count,
                 start.elapsed().as_millis(),
@@ -290,7 +198,7 @@ pub fn search_position(
             println!(
                 "info score cp {} hashfull {} depth {} nodes {} time {} pv {} ",
                 ((score + 1) & !3) / 4,
-                ttable.crude_full(),
+                crude_full(ttable),
                 d,
                 &count,
                 start.elapsed().as_millis(),
@@ -315,9 +223,9 @@ pub fn search_position(
     make_move(&mut boardcopy, &m);
     //rtable.set_value(boardcopy.key, true);
 
-    //let m = ttable.read_move(board.key);
+    //let m = ttable[board.hash()].read_move(board.key);
 
-    //let m = ttable.read_move(board.key);
+    //let m = ttable[board.hash()].read_move(board.key);
 
     m
 }
@@ -334,16 +242,16 @@ pub fn search_position(
 pub fn negamax(
     positionstack: &mut Vec<Board>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+    movestack: &mut [[u16; 256]; 64],
+    scores: &mut [[i32; 256]; 64],
     depth: usize,
     ply: usize,
     alpha: i32,
     beta: i32,
-    ttable: &mut Transpositiontable,
+    ttable: &mut Vec<TableEntry>,
     halfcount: usize,
-    killertable: &mut Vec<Vec<u16>>,
-    historytable: &mut Vec<Vec<Vec<usize>>>,
+    killertable: &mut [[u16; 2]; 64],
+    historytable: &mut [[[usize; 64]; 64]; 2],
     pruneflags: &mut (u8, bool),
     exmove: u16,
     stopped: &mut bool,
@@ -358,17 +266,16 @@ pub fn negamax(
     }
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
-    } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
-        && ply != 0
-        && pruneflags.0 == 0
-        && is_draw(positionstack, ply, halfcount)
-    {
+    }
+    let tprobe = &ttable[hash(key)];
+    if tprobe.key != 0 && ply != 0 && pruneflags.0 == 0 && is_draw(positionstack, ply, halfcount) {
         //println!("1");
         return piececonstants::draw_score(ply);
     }
     let cut = (beta + 1) & !3; //IBV tomfoolery
     let mut alpha2 = (alpha + 1) & !3; // IBV tomfoolery again?
-    let tscore = ttable.read_value(key, depth);
+    let tscore = tprobe.read_value(key, depth);
+    let tmove = tprobe.read_move(key);
     match tscore {
         Some(score) => {
             if {
@@ -456,8 +363,7 @@ pub fn negamax(
     let mut d = depth;
 
     // sort moves
-    // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
+    // Set move from Transposition Table
 
     let mut movephase: usize = match tmove {
         Some(m) => {
@@ -657,18 +563,18 @@ pub fn negamax(
         }
         //not PV search anymore
     }
-
+    let tset = &mut ttable[hash(key)];
     if j == 0 {
         if kingattacked {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
-            ttable.set_value(key, 0, depth, score);
-            ttable.clear_move(key);
+            tset.set_value(key, 0, depth, score);
+            tset.clear_move();
             return score;
         } else {
             //println!("2");
             let score = piececonstants::draw_score(ply);
-            ttable.set_value(key, 0, depth, score);
-            ttable.clear_move(key);
+            tset.set_value(key, 0, depth, score);
+            tset.clear_move();
             return score;
         }
     } else if alpha2 == (alpha + 1) & !3 {
@@ -682,7 +588,7 @@ pub fn negamax(
         alpha2 = (alpha2 + 1) & !3;
     }
 
-    ttable.set_value(key, best, depth, alpha2);
+    tset.set_value(key, best, depth, alpha2);
     alpha2
 }
 
@@ -690,15 +596,15 @@ pub fn negamax(
 pub fn quiescent(
     positionstack: &mut Vec<Board>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+    movestack: &mut [[u16; 256]; 64],
+    scores: &mut [[i32; 256]; 64],
     ply: usize,
     qply: usize,
     alpha: i32,
     beta: i32,
-    ttable: &mut Transpositiontable,
-    killertable: &mut Vec<Vec<u16>>,
-    historytable: &mut Vec<Vec<Vec<usize>>>,
+    ttable: &mut Vec<TableEntry>,
+    killertable: &mut [[u16; 2]; 64],
+    historytable: &mut [[[usize; 64]; 64]; 2],
     stopped: &mut bool,
     starttime: Instant,
     timelimit: Duration,
@@ -742,7 +648,7 @@ pub fn quiescent(
     alpha2 = if eval > alpha2 { eval } else { alpha2 };
 
     // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
+    let tmove = ttable[hash(key)].read_move(key);
 
     let mut movephase: usize = match tmove {
         Some(m) => {
@@ -857,16 +763,16 @@ pub fn zerowindow(
     // TODO: some shit is fucked up here
     positionstack: &mut Vec<Board>,
     count: &mut usize,
-    movestack: &mut Vec<Vec<u16>>,
-    scores: &mut Vec<Vec<i32>>,
+    movestack: &mut [[u16; 256]; 64],
+    scores: &mut [[i32; 256]; 64],
     depth: usize,
     ply: usize,
     beta: i32,
-    ttable: &mut Transpositiontable,
+    ttable: &mut Vec<TableEntry>,
 
     halfcount: usize,
-    killertable: &mut Vec<Vec<u16>>,
-    historytable: &mut Vec<Vec<Vec<usize>>>,
+    killertable: &mut [[u16; 2]; 64],
+    historytable: &mut [[[usize; 64]; 64]; 2],
     pruneflags: &mut (u8, bool),
     exmove: u16,
     stopped: &mut bool,
@@ -882,14 +788,15 @@ pub fn zerowindow(
     let key = positionstack[ply].key;
     if ply == piececonstants::MAXPLY - 1 {
         return 0;
-    } else if ttable.0[(key & (piececonstants::TTABLEMASK as u64)) as usize].0 != 0
-        && pruneflags.0 == 0
-        && is_draw(positionstack, ply, halfcount)
-    {
+    }
+    let tprobe = &ttable[hash(key)];
+
+    if tprobe.key != 0 && pruneflags.0 == 0 && is_draw(positionstack, ply, halfcount) {
         //println!("3");
         return piececonstants::draw_score(ply);
     }
-    let tscore = ttable.read_value(key, depth);
+    let tscore = tprobe.read_value(key, depth);
+    let tmove = tprobe.read_move(key);
     match tscore {
         Some(score) => {
             if exmove == 0 && {
@@ -976,8 +883,6 @@ pub fn zerowindow(
     // sort moves
     //println!("{:?}   {}", movestack[ply], index);
     // Extract move from Transposition Table
-    let tmove = ttable.read_move(positionstack[ply].key);
-
     let mut movephase: usize = match tmove {
         Some(m) => {
             movestack[ply][0] = m;
@@ -1174,23 +1079,24 @@ pub fn zerowindow(
             break;
         }
     }
+    let tset = &mut ttable[hash(key)];
     if j == 0 {
         if kingattacked {
             let score = 4 * (piececonstants::MATESCORE + ply as i32);
-            ttable.set_value(key, 0, depth, score);
-            ttable.clear_move(key);
+            tset.set_value(key, 0, depth, score);
+            tset.clear_move();
             return score;
         } else {
             //println!("4");
             let score = piececonstants::draw_score(ply);
-            ttable.set_value(key, 0, depth, score);
-            ttable.clear_move(key);
+            tset.set_value(key, 0, depth, score);
+            tset.clear_move();
             return score;
         }
     }
     if cut == (beta + 1) & !3 {
         cut -= 5;
     }
-    ttable.set_value(key, bestmove, depth, cut);
+    tset.set_value(key, bestmove, depth, cut);
     return cut;
 }
