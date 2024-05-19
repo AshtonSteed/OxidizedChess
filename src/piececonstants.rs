@@ -1,5 +1,6 @@
 lazy_static! { //allows me to use this stuff as statics, neat
     pub static ref SLIDER_ATTACKS: Vec<u64>= crate::pieceinit::init_slider_attacks2().0;
+    pub static ref BOARD_FFTS: Vec<Vec<rustfft::num_complex::Complex<f32>>> = crate::fourier::bitboard_fft_init();
 }
 
 // this file lives in gods blind spot
