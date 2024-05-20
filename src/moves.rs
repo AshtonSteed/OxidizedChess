@@ -232,7 +232,7 @@ pub fn score_moves(
     tmove: Option<Move>,
 ) {
     let mut i = 0;
-    let temp = n.clone();
+
     while i < *n {
         let mut m = moves[i];
         assert!(m != 0);

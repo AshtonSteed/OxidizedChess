@@ -2,7 +2,8 @@ use crate::engine::Board;
 use crate::movegen::generate_moves;
 use crate::moves::{make_move, MoveStuff};
 use crate::piececonstants;
-use crate::search::{search_position, TableEntry};
+use crate::search::search_position;
+use crate::ttable::TableEntry;
 
 use std::io::{self, BufRead};
 use std::time::{Duration, Instant};

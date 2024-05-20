@@ -23,6 +23,7 @@ mod moves;
 mod piececonstants;
 mod pieceinit;
 mod search;
+mod ttable;
 mod uci;
 //                                          enums and constants
 /*const NOTAFILE: u64 = 18374403900871474942; // masks giving 1s for all files but the edge files
