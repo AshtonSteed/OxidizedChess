@@ -550,26 +550,27 @@ impl Board {
         return self.key as usize & (piececonstants::TTABLEMASK as usize);
     }
 }
-
+// Counts all nodes up to a given depth using bulk counting.
+// As of 5/21/2024, ~ 120M nps with bulk counting, 50M without bulk counting
 pub fn perft_test(
     positionstack: &mut Vec<Board>,
-    movestack: &mut Vec<Vec<u16>>,
-    ply: &mut usize,
+    movestack: &mut [[u16; 256]; 64],
+    ply: usize,
     depth: usize,
 ) -> u64 {
     if depth == 1 {
+        return movegen::generate_moves(&mut positionstack[ply], &mut movestack[ply]) as u64;
+    }
+    if depth == 0 {
         return 1;
     }
     let mut count = 0;
-    let index = movegen::generate_moves(&mut positionstack[*ply], &mut movestack[*ply]);
+    let index = movegen::generate_moves(&mut positionstack[ply], &mut movestack[ply]);
 
     for m in 0..index {
-        let mut boardcopy = positionstack[*ply].clone();
-        moves::make_move(&mut boardcopy, &movestack[*ply][m]);
-        *ply += 1;
-        positionstack[*ply] = boardcopy;
-        count += perft_test(positionstack, movestack, ply, depth - 1);
-        *ply -= 1;
+        positionstack[ply + 1] = positionstack[ply];
+        moves::make_move(&mut positionstack[ply + 1], &movestack[ply][m]);
+        count += perft_test(positionstack, movestack, ply + 1, depth - 1);
     }
 
     count
@@ -577,23 +578,21 @@ pub fn perft_test(
 
 pub fn perft_div(
     positionstack: &mut Vec<Board>,
-    movestack: &mut Vec<Vec<u16>>,
-    ply: &mut usize,
+    movestack: &mut [[u16; 256]; 64],
+    ply: usize,
     depth: usize,
 ) -> Vec<(u16, u64)> {
-    let index = movegen::generate_moves(&mut positionstack[*ply], &mut movestack[*ply]);
+    let index = movegen::generate_moves(&mut positionstack[ply], &mut movestack[ply]);
     let mut count = vec![(0u16, 0u64); index];
     let mut i = 0;
     for m in 0..index {
-        let mut boardcopy = positionstack[*ply].clone();
-        moves::make_move(&mut boardcopy, &movestack[*ply][m]);
-        *ply += 1;
-        positionstack[*ply] = boardcopy;
+        positionstack[ply + 1] = positionstack[ply];
+        moves::make_move(&mut positionstack[ply + 1], &movestack[ply][m]);
         count[i] = (
-            movestack[*ply][m],
-            perft_test(positionstack, movestack, ply, depth - 1),
+            movestack[ply + 1][m],
+            perft_test(positionstack, movestack, ply + 1, depth - 1),
         );
-        *ply -= 1;
+
         i += 1;
     }
     count

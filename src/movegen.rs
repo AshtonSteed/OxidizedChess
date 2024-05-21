@@ -171,7 +171,7 @@ fn pin_diag(kingsq: usize, square: usize, occupancy: u64, pins: &mut u64, enpass
     // function checks for pinned pieces, hopefully
     let pinmask = piececonstants::RAY_BETWEEN[kingsq][square];
 
-    if (pinmask & (enpassant.clone() >> 8 | enpassant.clone() << 8)) != 0 {
+    if (pinmask & (*enpassant >> 8 | *enpassant << 8)) != 0 {
         *enpassant = 0;
     }
     if (pinmask & occupancy).count_ones() == 2 {
@@ -210,7 +210,7 @@ fn pin_ep(
         if ep_pawns == 2 {
             return;
         }
-        let ep_occ = occupancy & !(ep_pawns | enpassant.clone() >> 8 | enpassant.clone() << 8);
+        let ep_occ = occupancy & !(ep_pawns | *enpassant >> 8 | *enpassant << 8);
 
         if piececonstants::get_rook_attacks(kingsq, ep_occ) & ep_row & pieceboards[enemy + 3] != 0 {
             *enpassant = 0;

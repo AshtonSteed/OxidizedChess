@@ -86,7 +86,7 @@ impl MoveStuff for Move {
         return self.wrapping_mul(self ^ u16::MAX) != 0;
     }
 }
-
+#[inline(always)]
 pub fn make_move(board: &mut crate::engine::Board, movement: &Move) {
     let initial_square = movement.get_initial() as usize;
     let final_square = movement.get_final() as usize;
@@ -118,7 +118,6 @@ pub fn make_move(board: &mut crate::engine::Board, movement: &Move) {
     if board.enpassant != 0 {
         board.key ^= piececonstants::EPKEY[(board.enpassant.trailing_zeros()) as usize % 8];
     }
-
     board.enpassant = 0;
 
     //updates castling rights
@@ -134,7 +133,7 @@ pub fn make_move(board: &mut crate::engine::Board, movement: &Move) {
                 board.occupancies[enemy_raw] &= !endboard;
                 board.key ^= piececonstants::PIECEKEYS[target][final_square]
             }
-            // could handle enpassant here?
+            // Handle EP captures here
             None => {
                 let ep_target_square = final_square + 8 - raw_side * 16;
                 let ep_board = !(1u64 << ep_target_square);

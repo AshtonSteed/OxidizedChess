@@ -1,4 +1,4 @@
-use crate::engine::Board;
+use crate::engine::{perft_div, perft_test, Board};
 use crate::movegen::generate_moves;
 use crate::moves::{make_move, MoveStuff};
 use crate::piececonstants;
@@ -126,6 +126,35 @@ pub fn parse_go(
     make_move(&mut temp, &m);
 }
 
+// tells engine to run a perft up to some depth
+fn parse_perft(input: String, board: &mut Board) {
+    let split = input.split(' ');
+    let segments: Vec<&str> = split.collect();
+    let depth: usize = segments[1].parse().unwrap();
+    let t = segments.get(3);
+    let mut positionstack = vec![board.clone(); piececonstants::MAXPLY];
+    let mut movestack: [[u16; 256]; 64] = [[0; 256]; piececonstants::MAXPLY];
+    let now = Instant::now();
+    match t {
+        Some(_) => println!(
+            "Divided Perft with depth {}: {:#?}",
+            depth,
+            perft_div(&mut positionstack, &mut movestack, 0, depth)
+        ),
+        None => {
+            let count = perft_test(&mut positionstack, &mut movestack, 0, depth);
+            let time = now.elapsed().as_secs_f64();
+            let nps = count as f64 / time;
+            println!(
+                "Nodes Searched: {}
+                {} NPS in {} seconds",
+                perft_test(&mut positionstack, &mut movestack, 0, depth),
+                nps as u64,
+                time
+            )
+        }
+    }
+}
 pub fn communicate(stopped: &mut bool, starttime: Instant, timelimit: Duration) {
     if starttime.elapsed() >= timelimit {
         *stopped = true;
@@ -174,6 +203,8 @@ pub fn uci_loop() {
                 parse_go(input, &mut board, &mut ttable, &mut halfclock);
                 // analyze board position
             }
+
+            "perft" => parse_perft(input, &mut board),
             "quit" => break,
 
             _ => {} //panic!("Unkown command: {}", input),
